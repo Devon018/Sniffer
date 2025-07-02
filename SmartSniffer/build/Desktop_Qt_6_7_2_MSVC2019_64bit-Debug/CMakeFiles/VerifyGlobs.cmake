@@ -6,6 +6,33 @@ cmake_policy(SET CMP0009 NEW)
 file(GLOB_RECURSE NEW_GLOB LIST_DIRECTORIES false "D:/QtProjects/QtOnline/SmartSniffer/*.c")
 set(OLD_GLOB
   "D:/QtProjects/QtOnline/SmartSniffer/build/Desktop_Qt_6_7_2_MSVC2019_64bit-Debug/CMakeFiles/ShowIncludes/main.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/UDPdump/udpdump.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/basic_dump/basic_dump.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/basic_dump_ex/basic_dump_ex.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/iflist/iflist.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/pcap_filter/pcap_filter.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/pktdump_ex/pktdump_ex.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/readfile/readfile.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/readfile_ex/readfile_ex.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/savedump/savedump.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-pcap/sendpack/sendpack.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/PacketDriver/GetMacAddress/GetMacAddress.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/PacketDriver/TestPacketCapture/TestPacketCapture.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/PacketDriver/TestPacketSend/TestPacketSend.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/UDPdump/udpdump.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/UserLevelBridge/UserBridge.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/iflist/iflist.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/misc/basic_dump.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/misc/basic_dump_ex.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/misc/readfile.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/misc/readfile_ex.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/misc/savedump.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/misc/sendpack.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/pcap_filter/pcap_filter.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/pktdump_ex/pktdump_ex.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/sendcap/sendcap.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/smp_1/smp_1.c"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/tcptop/tcptop.c"
   )
 if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   message("-- GLOB mismatch!")
@@ -43,8 +70,13 @@ endif()
 file(GLOB_RECURSE NEW_GLOB LIST_DIRECTORIES false "D:/QtProjects/QtOnline/SmartSniffer/*.cpp")
 set(OLD_GLOB
   "D:/QtProjects/QtOnline/SmartSniffer/build/Desktop_Qt_6_7_2_MSVC2019_64bit-Debug/CMakeFiles/3.29.3/CompilerIdCXX/CMakeCXXCompilerId.cpp"
+  "D:/QtProjects/QtOnline/SmartSniffer/build/Desktop_Qt_6_7_2_MSVC2019_64bit-Debug/SmartSniffer_autogen/EWIEGA46WW/moc_mainwindow.cpp"
+  "D:/QtProjects/QtOnline/SmartSniffer/build/Desktop_Qt_6_7_2_MSVC2019_64bit-Debug/SmartSniffer_autogen/EWIEGA46WW/moc_packetcapture.cpp"
+  "D:/QtProjects/QtOnline/SmartSniffer/build/Desktop_Qt_6_7_2_MSVC2019_64bit-Debug/SmartSniffer_autogen/mocs_compilation.cpp"
   "D:/QtProjects/QtOnline/SmartSniffer/main.cpp"
   "D:/QtProjects/QtOnline/SmartSniffer/mainwindow.cpp"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/pcap_fopen/pcap_fopen.cpp"
+  "D:/QtProjects/QtOnline/SmartSniffer/packetcapture.cpp"
   )
 if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   message("-- GLOB mismatch!")
@@ -64,7 +96,31 @@ endif()
 file(GLOB_RECURSE NEW_GLOB LIST_DIRECTORIES false "D:/QtProjects/QtOnline/SmartSniffer/*.h")
 set(OLD_GLOB
   "D:/QtProjects/QtOnline/SmartSniffer/build/Desktop_Qt_6_7_2_MSVC2019_64bit-Debug/CMakeFiles/ShowIncludes/foo.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/build/Desktop_Qt_6_7_2_MSVC2019_64bit-Debug/SmartSniffer_autogen/include/ui_mainwindow.h"
   "D:/QtProjects/QtOnline/SmartSniffer/mainwindow.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Examples-remote/misc/misc.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/Packet32.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/npcap-bpf.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/npcap-defs.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap-bpf.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap-namedb.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/bluetooth.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/bpf.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/can_socketcan.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/compiler-tests.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/dlt.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/funcattrs.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/ipnet.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/namedb.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/nflog.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/pcap-inttypes.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/pcap.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/sll.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/socket.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/usb.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/npcap-sdk/Include/pcap/vlan.h"
+  "D:/QtProjects/QtOnline/SmartSniffer/packetcapture.h"
   )
 if(NOT "${NEW_GLOB}" STREQUAL "${OLD_GLOB}")
   message("-- GLOB mismatch!")
