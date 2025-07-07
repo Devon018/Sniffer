@@ -1,7 +1,9 @@
 #include "packetcapture.h"
 #include <QDateTime>
 #include <pcap.h>
-#include <winsock2.h>
+
+#include <WinSock2.h>
+#include <ws2tcpip.h>
 #include <iphlpapi.h>
 
 // Define ether_header and Ethernet type constants for Windows
@@ -32,7 +34,7 @@ struct ether_header {
 PacketCapture::PacketCapture(QObject *parent)
     : QThread(parent), m_pcapHandle(nullptr), m_stop(false)
 {
-    m_stop.store(false);
+    m_stop.storeRelaxed(0);
 }
 
 PacketCapture::~PacketCapture()
@@ -50,7 +52,7 @@ void PacketCapture::setDeviceName(const QString &deviceName)
 
 void PacketCapture::stopCapture()
 {
-    m_stop.store(true);
+    m_stop.storeRelaxed(1);
 }
 
 void PacketCapture::run()
@@ -84,7 +86,7 @@ void PacketCapture::run()
     int res;
 
     /*循环捕获package*/
-    while (!m_stop) {
+    while (!m_stop.loadRelaxed()) {
         res = pcap_next_ex(m_pcapHandle, &header, &packet);
         if (res == 0) {
             continue; // 超时，继续等待
@@ -102,82 +104,163 @@ void PacketCapture::run()
 
         // 如果是 IPv4 包
         if (eth_type == ETHERTYPE_IP) {
-            const struct ip* ip_hdr = reinterpret_cast<const ip*>(packet + sizeof(ether_header));
-            srcAddr = QString::fromUtf8(inet_ntoa(ip_hdr->ip_src));
-            dstAddr = QString::fromUtf8(inet_ntoa(ip_hdr->ip_dst));
+#ifdef _WIN32
+            const ip_header* ipHdr = reinterpret_cast<const ip_header*>(packet + sizeof(ether_header));
+#else
+            const struct ip* ipHdr = reinterpret_cast<const struct ip*>(packet + sizeof(ether_header));
+#endif
+            char srcIP[INET_ADDRSTRLEN];
+            char dstIP[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(ipHdr->ip_src), srcIP, INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &(ipHdr->ip_dst), dstIP, INET_ADDRSTRLEN);
+
+            QString info = QString("%1 > %2").arg(srcIP).arg(dstIP);
 
             // 解析传输层协议
-            if (ip_hdr->ip_p == IPPROTO_TCP) {
+            if (ipHdr->ip_proto == IPPROTO_TCP) {
                 protocol = "TCP";
-                const struct tcphdr* tcp_hdr = reinterpret_cast<const tcphdr*>(
-                    packet + sizeof(ether_header) + (ip_hdr->ip_hl << 2)
-                );
+
+                // 计算 TCP 头位置（考虑 IP 头长度）
+                const tcp_header* tcp_hdr = reinterpret_cast<const tcp_header*>(
+                    packet + sizeof(ether_header) + (ipHdr->ip_hl * 4)  // ip_hl 是 32-bit words
+                    );
+
+                // 解析 TCP 标志位
                 QString tcpFlags;
+#ifdef _WIN32
                 if (tcp_hdr->th_flags & TH_SYN) tcpFlags += "SYN ";
                 if (tcp_hdr->th_flags & TH_ACK) tcpFlags += "ACK ";
                 if (tcp_hdr->th_flags & TH_FIN) tcpFlags += "FIN ";
                 if (tcp_hdr->th_flags & TH_RST) tcpFlags += "RST ";
+#else
+                if (tcp_hdr->th_flags & TH_SYN) tcpFlags += "SYN ";
+                if (tcp_hdr->th_flags & TH_ACK) tcpFlags += "ACK ";
+                if (tcp_hdr->th_flags & TH_FIN) tcpFlags += "FIN ";
+                if (tcp_hdr->th_flags & TH_RST) tcpFlags += "RST ";
+#endif
 
-                QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6.%7 Flags=%8")
-                    .arg(++m_packetCount)                  // 包序号
-                    .arg(srcAddr)                        // 源IP
-                    .arg(dstAddr)                        // 目标IP
-                    .arg(protocol)                       // 协议
-                    .arg(header->len)                    // 包长度
-                    .arg(header->ts.tv_sec)              // 时间戳秒
-                    .arg(header->ts.tv_usec)             // 时间戳微秒
-                    .arg(tcpFlags.trimmed());            // TCP标志位
+                // 格式化时间戳（秒.微秒）
+                QString timestamp = QString("%1.%2")
+                                        .arg(header->ts.tv_sec)
+                                        .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0'));
+
+                // 构造显示信息
+                QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6 Flags=%7")
+                                   .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 6位宽序号
+                                   .arg(srcAddr)
+                                   .arg(dstAddr)
+                                   .arg(protocol)
+                                   .arg(header->len)
+                                   .arg(timestamp)
+                                   .arg(tcpFlags.trimmed());
 
                 emit packetCaptured(info);
             }
-            else if (ip_hdr->ip_p == IPPROTO_UDP) {
+            else if (ipHdr->ip_proto == IPPROTO_UDP) {
                 protocol = "UDP";
                 // UDP 处理类似
-                const struct udphdr* udp_hdr = reinterpret_cast<const udphdr*>(
-                    packet + sizeof(ether_header) + (ip_hdr->ip_hl << 2)
-                );
-                // UDP没有类似TCP的Flags，这里可以显示端口信息
-                QString udpInfo = QString("SrcPort=%1 DstPort=%2")
-                    .arg(ntohs(udp_hdr->uh_sport))
-                    .arg(ntohs(udp_hdr->uh_dport));
+                // 计算 UDP 头位置
+                const udp_header* udp_hdr = reinterpret_cast<const udp_header*>(
+                    packet + sizeof(ether_header) + (ipHdr->ip_hl * 4)
+                    );
 
-                QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6.%7 %8")
-                    .arg(++m_packetCount)                  // 包序号
-                    .arg(srcAddr)                        // 源IP
-                    .arg(dstAddr)                        // 目标IP
-                    .arg(protocol)                       // 协议
-                    .arg(header->len)                    // 包长度
-                    .arg(header->ts.tv_sec)              // 时间戳秒
-                    .arg(header->ts.tv_usec)             // 时间戳微秒
-                    .arg(udpInfo);                       // UDP端口信息
+                // 获取端口（注意字节序转换）
+                uint16_t srcPort = ntohs(udp_hdr->uh_sport);
+                uint16_t dstPort = ntohs(udp_hdr->uh_dport);
+                uint16_t udpLen = ntohs(udp_hdr->uh_ulen);
+
+                // 计算载荷长度（UDP长度 - 头长度）
+                uint16_t payloadLen = udpLen - sizeof(udp_header);
+
+                // 构造显示信息
+                QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 (Payload=%8) Time=%9.%10")
+                                   .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 包序号
+                                   .arg(srcAddr)                                  // 源IP
+                                   .arg(srcPort)                                  // 源端口
+                                   .arg(dstAddr)                                  // 目标IP
+                                   .arg(dstPort)                                  // 目标端口
+                                   .arg(protocol)                                 // 协议
+                                   .arg(header->len)                              // 总长度
+                                   .arg(payloadLen)                               // 载荷长度
+                                   .arg(header->ts.tv_sec)                        // 秒
+                                   .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')); // 微秒
+
+                // 特殊协议识别
+                if (dstPort == 53 || srcPort == 53) {
+                    info += " [DNS]";
+                } else if (dstPort == 67 || dstPort == 68 || srcPort == 67 || srcPort == 68) {
+                    info += " [DHCP]";
+                }
 
                 emit packetCaptured(info);
             }
         }
         else if (eth_type == ETHERTYPE_IPV6) {
             protocol = "IPv6";
-            if (header->len >= sizeof(ether_header) + sizeof(ip6_hdr)) {
-                const struct ip6_hdr* ipv6_hdr = reinterpret_cast<const ip6_hdr*>(packet + sizeof(ether_header));
 
-                char src_ip_str[INET6_ADDRSTRLEN];
-                char dst_ip_str[INET6_ADDRSTRLEN];
-                inet_ntop(AF_INET6, &ipv6_hdr->ip6_src, src_ip_str, INET6_ADDRSTRLEN);
-                inet_ntop(AF_INET6, &ipv6_hdr->ip6_dst, dst_ip_str, INET6_ADDRSTRLEN);
-                srcAddr = QString::fromUtf8(src_ip_str);
-                dstAddr = QString::fromUtf8(dst_ip_str);
-
-                QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6.%7")
-                    .arg(++m_packetCount)                  // 包序号
-                    .arg(srcAddr)                        // 源IP
-                    .arg(dstAddr)                        // 目标IP
-                    .arg(protocol)                       // 协议
-                    .arg(header->len)                    // 包长度
-                    .arg(header->ts.tv_sec)              // 时间戳秒
-                    .arg(header->ts.tv_usec);             // 时间戳微秒
-                emit packetCaptured(info);
-            } else {
+            // 基本长度检查
+            if (header->len < sizeof(ether_header) + sizeof(ip6_hdr)) {
                 qWarning() << "Invalid IPv6 packet length";
+                return;
             }
+
+            const ip6_hdr* ipv6_hdr = reinterpret_cast<const ip6_hdr*>(
+                packet + sizeof(ether_header)
+                );
+
+            // 转换IPv6地址为字符串
+            char src_ip_str[INET6_ADDRSTRLEN];
+            char dst_ip_str[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, &ipv6_hdr->ip6_src, src_ip_str, INET6_ADDRSTRLEN);
+            inet_ntop(AF_INET6, &ipv6_hdr->ip6_dst, dst_ip_str, INET6_ADDRSTRLEN);
+
+            QString srcAddr = QString::fromUtf8(src_ip_str);
+            QString dstAddr = QString::fromUtf8(dst_ip_str);
+
+            // 解析扩展头和上层协议
+            uint8_t next_header = ipv6_hdr->ip6_nxt;
+            uint16_t payload_len = ntohs(ipv6_hdr->ip6_plen);
+            size_t header_offset = sizeof(ip6_hdr);
+
+            // 处理扩展头（最多处理3层扩展头）
+            for (int i = 0; i < 3 && isExtensionHeader(next_header); ++i) {
+                if (header->len < sizeof(ether_header) + header_offset + 1) {
+                    break;
+                }
+
+                const uint8_t* ext_header = packet + sizeof(ether_header) + header_offset;
+                uint8_t ext_len = (ext_header[1] + 1) * 8;  // 扩展头长度单位是8字节
+
+                if (header->len < sizeof(ether_header) + header_offset + ext_len) {
+                    break;
+                }
+
+                next_header = ext_header[0];
+                header_offset += ext_len;
+            }
+
+            // 识别上层协议
+            QString upperProtocol;
+            switch (next_header) {
+            case IPPROTO_TCP:  upperProtocol = "TCP"; break;
+            case IPPROTO_UDP:  upperProtocol = "UDP"; break;
+            case IPPROTO_ICMPV6: upperProtocol = "ICMPv6"; break;
+            default: upperProtocol = QString("Proto=%1").arg(next_header);
+            }
+
+            // 构造显示信息
+            QString info = QString("[%1] %2 → %3 %4 Len=%5 Payload=%6 Next=%7 Time=%8.%9")
+                               .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 包序号
+                               .arg(srcAddr)                                  // 源IPv6
+                               .arg(dstAddr)                                  // 目标IPv6
+                               .arg(protocol)                                 // IPv6
+                               .arg(header->len)                              // 总长度
+                               .arg(payload_len)                              // 载荷长度
+                               .arg(upperProtocol)                            // 上层协议
+                               .arg(header->ts.tv_sec)                        // 秒
+                               .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')); // 微秒
+
+            emit packetCaptured(info);
         }
         else if (eth_type == ETHERTYPE_ARP) {
             protocol = "ARP";
