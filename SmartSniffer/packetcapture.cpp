@@ -50,9 +50,19 @@ void PacketCapture::setDeviceName(const QString &deviceName)
     m_deviceName = deviceName;
 }
 
+void PacketCapture::startCapture()
+{
+    run();
+}
+
 void PacketCapture::stopCapture()
 {
     m_stop.storeRelaxed(1);
+}
+
+void PacketCapture::setFilterRule(const QString &filterRule)
+{
+    m_filterRule = filterRule;
 }
 
 void PacketCapture::run()
@@ -65,21 +75,23 @@ void PacketCapture::run()
     }
 
     // 设置过滤规则（可选），例如只捕获TCP包
-    struct bpf_program fp;
-    if (pcap_compile(m_pcapHandle, &fp, "tcp", 0, 0) == -1) {
-        qWarning() << "Error compiling filter: " << pcap_geterr(m_pcapHandle);
-        pcap_close(m_pcapHandle);
-        m_pcapHandle = nullptr;
-        return;
-    }
-    if (pcap_setfilter(m_pcapHandle, &fp) == -1) {
-        qWarning() << "Error setting filter: " << pcap_geterr(m_pcapHandle);
+    if (!m_filterRule.isEmpty()) {
+        struct bpf_program fp;
+        if (pcap_compile(m_pcapHandle, &fp, m_filterRule.toUtf8().constData(), 0, 0) == -1) {
+            qWarning() << "Error compiling filter: " << pcap_geterr(m_pcapHandle);
+            pcap_close(m_pcapHandle);
+            m_pcapHandle = nullptr;
+            return;
+        }
+        if (pcap_setfilter(m_pcapHandle, &fp) == -1) {
+            qWarning() << "Error setting filter: " << pcap_geterr(m_pcapHandle);
+            pcap_freecode(&fp);
+            pcap_close(m_pcapHandle);
+            m_pcapHandle = nullptr;
+            return;
+        }
         pcap_freecode(&fp);
-        pcap_close(m_pcapHandle);
-        m_pcapHandle = nullptr;
-        return;
     }
-    pcap_freecode(&fp);
 
     struct pcap_pkthdr *header;
     const u_char *packet;
@@ -195,6 +207,7 @@ void PacketCapture::run()
                 emit packetCaptured(info);
             }
         }
+        //如果是ipv6包
         else if (eth_type == ETHERTYPE_IPV6) {
             protocol = "IPv6";
 

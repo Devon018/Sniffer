@@ -2,12 +2,12 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-
-QT_BEGIN_NAMESPACE
-namespace Ui {
-class MainWindow;
-}
-QT_END_NAMESPACE
+#include <QListWidget>
+#include <QComboBox>
+#include <QPushButton>
+#include <QLineEdit>
+#include <QStatusBar>
+#include "packetcapture.h"
 
 class MainWindow : public QMainWindow
 {
@@ -17,7 +17,28 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+private slots:
+    void startCapture();
+    void stopCapture();
+    void updatePacketList(const QString &packetInfo);
+    void refreshDevices();
+    void captureFinished();
+
 private:
-    Ui::MainWindow *ui;
+    void setupUI();
+    void populateDevices();
+
+    PacketCapture *packetCapture;
+    QThread *captureThread;
+
+    // UI Components
+    QComboBox *deviceComboBox;
+    QLineEdit *filterEdit;
+    QPushButton *startButton;
+    QPushButton *stopButton;
+    QPushButton *refreshButton;
+    QListWidget *packetList;
+    QStatusBar *statusBar;
 };
+
 #endif // MAINWINDOW_H
