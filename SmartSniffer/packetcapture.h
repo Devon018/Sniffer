@@ -95,6 +95,7 @@ public:
     ~PacketCapture();
 
     void setDeviceName(const QString &deviceName);
+    void startCapture();
     void stopCapture();
 
     void setFilterRule(const QString &filterRule);
@@ -110,6 +111,7 @@ private:
     QString m_deviceName;
     QAtomicInteger<quint32> m_stop;
     QAtomicInteger<unsigned long long> m_packetCount{0};
+    QString m_filterRule;
 
     bool isExtensionHeader(uint8_t header_type) {
         return (header_type == 0) ||    // Hop-by-Hop

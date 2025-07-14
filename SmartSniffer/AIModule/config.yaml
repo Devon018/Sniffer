@@ -1,0 +1,2 @@
+threshold: 0.75
+model_path: model/model.pkl

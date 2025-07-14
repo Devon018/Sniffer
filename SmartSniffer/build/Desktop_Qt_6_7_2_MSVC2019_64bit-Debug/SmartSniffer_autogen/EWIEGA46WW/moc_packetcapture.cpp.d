@@ -1,6 +1,6 @@
 D:/QtProjects/QtOnline/SmartSniffer/build/Desktop_Qt_6_7_2_MSVC2019_64bit-Debug/SmartSniffer_autogen/EWIEGA46WW/moc_packetcapture.cpp: D:/QtProjects/QtOnline/SmartSniffer/packetcapture.h \
+  D:/Qt/6.7.2/msvc2019_64/include/QtCore/QAtomicInteger \
   D:/Qt/6.7.2/msvc2019_64/include/QtCore/QObject \
-  D:/Qt/6.7.2/msvc2019_64/include/QtCore/QThread \
   D:/Qt/6.7.2/msvc2019_64/include/QtCore/q20functional.h \
   D:/Qt/6.7.2/msvc2019_64/include/QtCore/q20memory.h \
   D:/Qt/6.7.2/msvc2019_64/include/QtCore/q20type_traits.h \
