@@ -5,6 +5,7 @@
 #include <QAtomicInteger>
 #include <pcap.h>
 #include <qthread.h>
+#include "configdata.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -95,13 +96,15 @@ public:
     ~PacketCapture();
 
     void setDeviceName(const QString &deviceName);
-    void startCapture();
-    void stopCapture();
-
     void setFilterRule(const QString &filterRule);
 
 signals:
     void packetCaptured(const QString &packetInfo);
+
+public slots:
+    void onStartCapture(const QString &device, const QString &filter);
+    void onStopCapture();
+    void onConfigChanged(const ConfigData &config);
 
 protected:
     void run() override;
@@ -109,9 +112,9 @@ protected:
 private:
     pcap_t *m_pcapHandle = nullptr;
     QString m_deviceName;
+    QString m_filterRule;
     QAtomicInteger<quint32> m_stop;
     QAtomicInteger<unsigned long long> m_packetCount{0};
-    QString m_filterRule;
 
     bool isExtensionHeader(uint8_t header_type) {
         return (header_type == 0) ||    // Hop-by-Hop

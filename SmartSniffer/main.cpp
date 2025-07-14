@@ -3,10 +3,12 @@
 #include <QApplication>
 #include <QLocale>
 #include <QTranslator>
+#include "configdata.h""
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+    qRegisterMetaType<ConfigData>("ConfigData");
 
     QTranslator translator;
     const QStringList uiLanguages = QLocale::system().uiLanguages();

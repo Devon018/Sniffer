@@ -39,7 +39,7 @@ PacketCapture::PacketCapture(QObject *parent)
 
 PacketCapture::~PacketCapture()
 {
-    stopCapture();
+    onStopCapture();
     if (m_pcapHandle) {
         pcap_close(m_pcapHandle);
     }
@@ -50,23 +50,38 @@ void PacketCapture::setDeviceName(const QString &deviceName)
     m_deviceName = deviceName;
 }
 
-void PacketCapture::startCapture()
-{
-    run();
-}
-
-void PacketCapture::stopCapture()
-{
-    m_stop.storeRelaxed(1);
-}
-
 void PacketCapture::setFilterRule(const QString &filterRule)
 {
     m_filterRule = filterRule;
 }
 
+void PacketCapture::onStartCapture(const QString &device, const QString &filter)
+{
+    qDebug() << "开始抓包，接口:" << device << ", 过滤规则:" << filter;
+
+    this->setDeviceName(device);
+    this->setFilterRule(filter);
+
+    m_stop.storeRelaxed(0);
+
+    this->start();
+}
+
+void PacketCapture::onStopCapture()
+{
+    m_stop.storeRelaxed(1);
+}
+
+void PacketCapture::onConfigChanged(const ConfigData &config)
+{
+    this->setDeviceName(config.device);
+    this->setFilterRule(config.filter);
+}
+
 void PacketCapture::run()
 {
+    qDebug() << "Calling PacketCapture::run()...\n" << m_deviceName << "\n";
+
     char errbuf[PCAP_ERRBUF_SIZE];
     m_pcapHandle = pcap_open(m_deviceName.toUtf8().constData(), 65536, PCAP_OPENFLAG_PROMISCUOUS, 1000, nullptr, errbuf);
     if (!m_pcapHandle) {

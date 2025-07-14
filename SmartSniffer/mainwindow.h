@@ -2,28 +2,24 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include "packetcapture.h"
 #include <QString>
 #include <QStringList>
+#include "packetcapture.h"
 
-// 自定义数据结构，可根据需要调整
 struct Packet {
+    QString id;
     QString timestamp;
     QString srcIP;
     QString dstIP;
     QString protocol;
     int length;
+    QString flags;
     QString aiTag;
 };
 
 struct AlertInfo {
     QString message;
     int severity;
-};
-
-struct ConfigData {
-    QString device;
-    QString filter;
 };
 
 QT_BEGIN_NAMESPACE
@@ -60,6 +56,7 @@ private:
     void initializeUi();
     void connectSignals();
     void loadInterfaces();
+    QString getCurrInterfaceName();
     void appendPacketRow(const Packet &pkt);
     void showDetails(int row);
 };

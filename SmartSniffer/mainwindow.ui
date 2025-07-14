@@ -13,7 +13,6 @@
   <property name="windowTitle">
    <string>SmartSniffer</string>
   </property>
-
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="mainLayout" stretch="3,7">
     <item>
@@ -54,7 +53,7 @@
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
-         <property name="sizeHint">
+         <property name="sizeHint" stdset="0">
           <size>
            <width>20</width>
            <height>40</height>
@@ -123,28 +122,16 @@
     </item>
    </layout>
   </widget>
-
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
      <width>1000</width>
-     <height>21</height>
+     <height>17</height>
     </rect>
    </property>
-   <widget class="QMenu" name="menuFile">
-    <property name="title">
-     <string>文件</string>
-    </property>
-   </widget>
-   <widget class="QMenu" name="menuHelp">
-    <property name="title">
-     <string>帮助</string>
-    </property>
-   </widget>
   </widget>
-
   <widget class="QToolBar" name="mainToolBar">
    <property name="windowTitle">
     <string>工具栏</string>
@@ -152,58 +139,51 @@
    <property name="toolButtonStyle">
     <enum>Qt::ToolButtonIconOnly</enum>
    </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
    <addaction name="actionStartCapture"/>
    <addaction name="actionStopCapture"/>
    <addaction name="actionExport"/>
   </widget>
-
   <widget class="QStatusBar" name="statusbar">
    <property name="sizeGripEnabled">
     <bool>true</bool>
    </property>
   </widget>
-
   <action name="actionStartCapture">
-   <!-- <property name="text">
-    <string>开始抓包</string>
-   </property> -->
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/assets/img/start-24.png</normaloff>
-    </iconset>
+     <normaloff>:/icons/assets/img/start-24.png</normaloff>:/icons/assets/img/start-24.png</iconset>
    </property>
    <property name="toolTip">
     <string>开始抓包</string>
    </property>
   </action>
   <action name="actionStopCapture">
-   <!-- <property name="text">
-    <string>停止抓包</string>
-   </property> -->
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/assets/img/stop-24.png</normaloff>
-    </iconset>
+     <normaloff>:/icons/assets/img/stop-24.png</normaloff>:/icons/assets/img/stop-24.png</iconset>
    </property>
    <property name="toolTip">
     <string>停止抓包</string>
    </property>
   </action>
   <action name="actionExport">
-   <!-- <property name="text">
-    <string>导出数据</string>
-   </property> -->
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icons/assets/img/export-24.png</normaloff>
-    </iconset>
+     <normaloff>:/icons/assets/img/export-24.png</normaloff>:/icons/assets/img/export-24.png</iconset>
    </property>
    <property name="toolTip">
     <string>导出数据</string>
    </property>
   </action>
-
  </widget>
- <resources/>
+ <resources>
+  <include location="icons.qrc"/>
+ </resources>
  <connections/>
 </ui>
