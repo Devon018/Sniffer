@@ -1,0 +1,13 @@
+# ninja log v6
+73	723	7741603929748898	D:/Kobe/Projects/Qt Projects/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_2_MinGW_64_bit-Debug/CMakeFiles/cmake.verify_globs	89d8505892a30502
+528	3618	7741602624350140	SmartSniffer_autogen/timestamp	61165618d0e6285c
+3885	6299	7741602630984935	CMakeFiles/SmartSniffer.dir/main.cpp.obj	e81d8660d323c52a
+528	3618	7741602624350140	SmartSniffer_autogen/mocs_compilation.cpp	61165618d0e6285c
+528	3618	7741602624350140	D:/Kobe/Projects/Qt Projects/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_2_MinGW_64_bit-Debug/SmartSniffer_autogen/timestamp	61165618d0e6285c
+528	3618	7741602624350140	D:/Kobe/Projects/Qt Projects/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_2_MinGW_64_bit-Debug/SmartSniffer_autogen/mocs_compilation.cpp	61165618d0e6285c
+4201	6471	7741602634187003	CMakeFiles/SmartSniffer.dir/mainwindow.cpp.obj	1f91b44e1c919ea7
+3634	7307	7741602628421693	CMakeFiles/SmartSniffer.dir/SmartSniffer_autogen/mocs_compilation.cpp.obj	3d9be7eb0f441e57
+4454	8032	7741602636707532	CMakeFiles/SmartSniffer.dir/packetcapture.cpp.obj	31d7976e67c80e69
+723	9153	7741604012743626	build.ninja	8d7d210fefc121e9
+26	639	7741604015826773	D:/Kobe/Projects/Qt Projects/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_2_MinGW_64_bit-Debug/CMakeFiles/cmake.verify_globs	89d8505892a30502
+85	767	7741616611472319	D:/Kobe/Projects/Qt Projects/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_2_MinGW_64_bit-Debug/CMakeFiles/cmake.verify_globs	89d8505892a30502
