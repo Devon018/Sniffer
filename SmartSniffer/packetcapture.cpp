@@ -76,6 +76,57 @@ void PacketCapture::onConfigChanged(const ConfigData &config)
     qDebug() << "Device set: " << this->m_deviceName << "; Filter set: " << this->m_filterRule;
 }
 
+void PacketCapture::updateFlowStats(const QString& srcAddr, const QString& dstAddr,
+                                    quint32 packetLen, const timeval& timestamp)
+{
+    // 生成流标识符 (源IP->目的IP)
+    QString flowKey = srcAddr + "->" + dstAddr;
+
+    // 获取当前时间戳(微秒)
+    qint64 currentTime = timestamp.tv_sec * 1000000LL + timestamp.tv_usec;
+
+    // 获取或创建流统计
+    FlowStats& stats = flowStats[flowKey];
+
+    // 更新前向包统计
+    stats.totalFwdPackets++;
+    stats.totalFwdLength += packetLen;
+
+    // 更新流间到达时间
+    if (stats.lastPacketTime > 0) {
+        qint64 iat = currentTime - stats.lastPacketTime;
+        stats.totalIAT += iat;
+        stats.packetCount++;  // 用于计算平均值的包计数
+    }
+    stats.lastPacketTime = currentTime;
+}
+
+QMap<QString, QVariantMap> PacketCapture::getFlowStats() const
+{
+    QMap<QString, QVariantMap> result;
+
+    for (auto it = flowStats.constBegin(); it != flowStats.constEnd(); ++it) {
+        const FlowStats& stats = it.value();
+
+        // 计算平均值
+        double meanLength = stats.totalFwdPackets > 0 ?
+                                static_cast<double>(stats.totalFwdLength) / stats.totalFwdPackets : 0.0;
+
+        double meanIAT = stats.packetCount > 0 ?
+                             static_cast<double>(stats.totalIAT) / stats.packetCount / 1000.0 : 0.0; // 转换为毫秒
+
+        // 构建统计结果
+        QVariantMap statMap;
+        statMap["Total Fwd Packets"] = stats.totalFwdPackets;
+        statMap["Fwd Packet Length Mean"] = meanLength;
+        statMap["Flow IAT Mean"] = meanIAT;
+
+        result[it.key()] = statMap;
+    }
+
+    return result;
+}
+
 void PacketCapture::run()
 {
     qDebug() << "Calling PacketCapture::run()...\n" << m_deviceName << "\n";
@@ -180,7 +231,7 @@ void PacketCapture::run()
                 QString timestamp = QString("%1.%2")
                                         .arg(header->ts.tv_sec)
                                         .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0'));
-
+                updateFlowStats(srcAddr, dstAddr, header->len, header->ts);
                 // 构造显示信息
                 QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6 Flags=%7")
                                    // .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 6位宽序号
@@ -211,6 +262,8 @@ void PacketCapture::run()
 
                 // 计算载荷长度（UDP长度 - 头长度）
                 uint16_t payloadLen = udpLen - sizeof(udp_header);
+
+                updateFlowStats(srcAddr, dstAddr, header->len, header->ts);
 
                 // 构造显示信息
                 QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 Time=%8.%9 (Payload=%10)")
@@ -303,6 +356,8 @@ void PacketCapture::run()
             default: upperProtocol = QString("Proto=%1").arg(next_header);
             }
 
+            updateFlowStats(srcAddr, dstAddr, header->len, header->ts);
+
             // 构造显示信息
             QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6.%7 Payload=%8 Next=%9")
                                .arg(++m_packetCount)//, 6, 10, QLatin1Char(' '))  // 包序号
@@ -372,6 +427,7 @@ void PacketCapture::run()
                     case 2: op = "Reply"; break;
                     default: op = QString("Op%1").arg(ntohs(arp->oper));
                 }
+                updateFlowStats(srcMac, dstMac, header->len, header->ts);
                 QString info = QString("[%1] ARP %2 %3 (%4) → %5 (%6) Len=%7 Time=%8.%9")
                     .arg(++m_packetCount)
                     .arg(op)

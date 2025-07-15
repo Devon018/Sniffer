@@ -1,13 +1,14 @@
-D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_3_MSVC2022_64bit-Debug/SmartSniffer_autogen/EWIEGA46WW/moc_mainwindow.cpp: D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/mainwindow.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/npcap-sdk/Include/pcap.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/bpf.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/compiler-tests.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/dlt.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/funcattrs.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/pcap-inttypes.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/pcap.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/socket.h \
-  D:/Kobe/Projects/Qt\ Projects/Sniffer/SmartSniffer/packetcapture.h \
+C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_3_MSVC2022_64bit-Debug/SmartSniffer_autogen/EWIEGA46WW/moc_mainwindow.cpp: C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/mainwindow.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/configdata.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/npcap-sdk/Include/pcap.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/bpf.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/compiler-tests.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/dlt.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/funcattrs.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/pcap-inttypes.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/pcap.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/npcap-sdk/Include/pcap/socket.h \
+  C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/packetcapture.h \
   D:/Qt/6.7.3/msvc2022_64/include/QtCore/QAtomicInteger \
   D:/Qt/6.7.3/msvc2022_64/include/QtCore/QObject \
   D:/Qt/6.7.3/msvc2022_64/include/QtCore/QString \

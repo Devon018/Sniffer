@@ -98,6 +98,20 @@ public:
     void setDeviceName(const QString &deviceName);
     void setFilterRule(const QString &filterRule);
 
+    // 统计相关成员
+    struct FlowStats {
+        quint64 totalFwdPackets = 0;      // 前向数据包总数
+        quint64 totalFwdLength = 0;       // 前向数据包总长度
+        qint64 lastPacketTime = -1;       // 上一个数据包的时间戳(微秒)
+        quint64 totalIAT = 0;             // 流间到达时间总和(微秒)
+        quint64 packetCount = 0;          // 用于计算平均值的包计数
+    };
+
+    QMap<QString, FlowStats> flowStats;   // 按流(源IP+目的IP)存储统计数据
+
+    // 获取指定流的统计数据
+    QMap<QString, QVariantMap> getFlowStats() const;
+
 signals:
     void packetCaptured(const QString &packetInfo);
 
@@ -124,6 +138,11 @@ private:
                (header_type == 51) ||   // AH
                (header_type == 50);     // ESP
     }
+
+    //更新流统计信息
+    void updateFlowStats(const QString& srcAddr, const QString& dstAddr,
+                         quint32 packetLen, const timeval& timestamp);
+
 };
 
 #endif // PACKETCAPTURE_H
