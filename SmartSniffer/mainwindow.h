@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QString>
 #include <QStringList>
+#include <QProcess>
 #include "packetcapture.h"
 
 struct Packet {
@@ -56,12 +57,14 @@ private slots:
     void onExportData();
     void onPacketSelected();
     void handlePacketCaptured(const QString &packetInfo, const QString &httpBody, const QString &hexData);
+    void setAILabel(const int &row, const QString &categoryLabel);
 
 private:
     Ui::MainWindow *ui;
     PacketCapture *m_capture;
     Packet packetList[TABLE_SIZE];
     int listHead, listTail, removedRowCount;
+    QProcess *aiServerProcess;
 
     void initializeUi();
     void connectSignals();

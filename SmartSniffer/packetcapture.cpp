@@ -1,7 +1,13 @@
 #include "packetcapture.h"
 #include <QDateTime>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonObject>
+#include <QJsonDocument>
 #include <cstring>
 #include <pcap.h>
+#include "packetdata.h"
 
 #include <WinSock2.h>
 #include <ws2tcpip.h>
@@ -38,6 +44,13 @@ PacketCapture::PacketCapture(QObject *parent)
     m_stop.storeRelaxed(0);
 }
 
+void PacketCapture::initNetwork()
+{
+    qDebug() << "initNetwork thread:" << QThread::currentThread();
+    m_networkManager = new QNetworkAccessManager();
+    m_networkManager->moveToThread(this->thread());
+}
+
 PacketCapture::~PacketCapture()
 {
     onStopCapture();
@@ -61,6 +74,81 @@ void PacketCapture::setFilterRule(const QString &filterRule)
     m_filterRule = filterRule;
 }
 
+QString timestampToIso(const long &ts_sec) {
+    QDateTime dt = QDateTime::fromSecsSinceEpoch(ts_sec, Qt::UTC);
+    return dt.toString(Qt::ISODate);
+}
+
+QByteArray AIModelInputFormatter(u_short &srcPort, u_short &dstPort, const QString &protocol, QVariantMap &statMap, const long &ts_sec, const QString &srcAddr, const QString &dstAddr)
+{
+    PacketData pktdata;
+    pktdata.data["source_port"] = srcPort;
+    pktdata.data["destination_port"] = dstPort;
+    pktdata.data["protocol"] = protocol;
+    pktdata.data["Total Fwd Packets"] = QJsonValue::fromVariant(statMap["Total Fwd Packets"]);
+    pktdata.data["Fwd Packet Length Mean"] = QJsonValue::fromVariant(statMap["Fwd Packet Length Mean"]);
+    pktdata.data["Flow IAT Mean"] = QJsonValue::fromVariant(statMap["Flow IAT Mean"]);
+    pktdata.data["timestamp"] = timestampToIso(ts_sec);
+    pktdata.data["source_ip"] = srcAddr;
+    pktdata.data["destination_ip"] = dstAddr;
+    return pktdata.toJson();
+}
+
+void PacketCapture::applyAIModel(const QString &srcIP, const QString &dstIP,
+                                    const QString &protocol, const long &ts_sec,
+                                    u_short &srcPort, u_short &dstPort,
+                                    std::function<void(const QString &)> callback)
+{
+    qDebug() << "Calling applyAIModel() with protocol " << protocol << " ...";
+    qDebug() << "m_networkManager:" << m_networkManager;
+    qDebug() << "m_networkManager thread:" << m_networkManager->thread();
+    qDebug() << "Current thread:" << QThread::currentThread();
+    QNetworkRequest request(QUrl("http://127.0.0.1:5000/predict"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QVariantMap statMap = getFlowStats(srcIP, dstIP);
+    qDebug() << "statMap gotten.";
+    QByteArray data = AIModelInputFormatter(srcPort, dstPort, protocol, statMap, ts_sec, srcIP, dstIP);
+    qDebug() << "Sending " << data.toStdString() << " to Model...";
+
+    QNetworkReply *reply = m_networkManager->post(request, data);
+
+    connect(reply, &QNetworkReply::finished, this, [reply, callback]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray response = reply->readAll();
+            QJsonParseError parseError;
+            QJsonDocument doc = QJsonDocument::fromJson(response, &parseError);
+
+            if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+                QJsonObject obj = doc.object();
+                QString category = obj.value("category").toString();
+                qDebug() << "[AI Category]:" << category;
+                callback(category);
+            } else {
+                qWarning() << "[AI parse error]:" << parseError.errorString();
+                callback("N/A");
+            }
+        } else {
+            qWarning() << "[AI error]:" << reply->errorString();
+            callback("N/A");
+        }
+        reply->deleteLater();
+    });
+}
+
+QVariantMap PacketCapture::getFlowStats(const QString& srcAddr, const QString& dstAddr) const
+{
+    QString flowKey = srcAddr + "->" + dstAddr;
+    const FlowStats& stats = flowStats[flowKey];
+    QVariantMap statMap;
+
+    statMap["Total Fwd Packets"] = stats.totalFwdPackets;
+    statMap["Fwd Packet Length Mean"] = stats.totalFwdPackets > 0 ? static_cast<double>(stats.totalFwdLength) / stats.totalFwdPackets : 0.0;
+    statMap["Flow IAT Mean"] = stats.packetCount > 0 ? static_cast<double>(stats.totalIAT) / stats.packetCount / 1000.0 : 0.0;
+
+    return statMap;
+}
+
 void PacketCapture::onStartCapture()
 {
     qDebug() << "开始抓包，接口:" << this->m_deviceName << ", 过滤规则:" << this->m_filterRule;
@@ -80,6 +168,31 @@ void PacketCapture::onConfigChanged(const ConfigData &config)
     this->setDeviceName(config.device);
     this->setFilterRule(config.filter);
     qDebug() << "Device set: " << this->m_deviceName << "; Filter set: " << this->m_filterRule;
+}
+
+void PacketCapture::updateFlowStats(const QString& srcAddr, const QString& dstAddr,
+                                    quint32 packetLen, const timeval& timestamp)
+{
+    // 生成流标识符 (源IP->目的IP)
+    QString flowKey = srcAddr + "->" + dstAddr;
+
+    // 获取当前时间戳(微秒)
+    qint64 currentTime = timestamp.tv_sec * 1000000LL + timestamp.tv_usec;
+
+    // 获取或创建流统计
+    FlowStats& stats = flowStats[flowKey];
+
+    // 更新前向包统计
+    stats.totalFwdPackets++;
+    stats.totalFwdLength += packetLen;
+
+    // 更新流间到达时间
+    if (stats.lastPacketTime > 0) {
+        qint64 iat = currentTime - stats.lastPacketTime;
+        stats.totalIAT += iat;
+        stats.packetCount++;  // 用于计算平均值的包计数
+    }
+    stats.lastPacketTime = currentTime;
 }
 
 QString PacketCapture::extractPayload(const u_char* packet, const struct pcap_pkthdr* header) {
@@ -275,7 +388,7 @@ void PacketCapture::run()
     const u_char *packet;
     int res;
 
-    /*循环捕获package*/
+    // 循环捕获packets
     while (!m_stop.loadRelaxed()) {
         res = pcap_next_ex(m_pcapHandle, &header, &packet);
         if (res == 0) {
@@ -285,7 +398,7 @@ void PacketCapture::run()
             break;
         }
 
-        // 解析 Ethernet 头部（假设是 Ethernet 帧）
+        // 解析Ethernet头部（假设是Ethernet帧）
         const struct ether_header* eth_hdr = reinterpret_cast<const ether_header*>(packet);
         uint16_t eth_type = ntohs(eth_hdr->ether_type);
 
@@ -294,7 +407,7 @@ void PacketCapture::run()
         QString httpBody = extractPayload(packet, header);
         QString hexData = httpBody.toUtf8().toHex(' ').toUpper();
 
-        // 如果是 IPv4 包
+        // IPv4
         if (eth_type == ETHERTYPE_IP) {
 #ifdef _WIN32
             const ip_header* ipHdr = reinterpret_cast<const ip_header*>(packet + sizeof(ether_header));
@@ -325,20 +438,20 @@ void PacketCapture::run()
             if (ipHdr->ip_proto == IPPROTO_TCP) {
                 protocol = "TCP";
 
-                // 安全解析 IP 头长度
+                // 安全解析IP头长度
                 uint8_t ihl = ipHdr->ip_hl & 0x0F;
                 size_t ipHeaderLen = ihl * 4;
                 uint16_t totalLen = ntohs(ipHdr->ip_len);
                 if (totalLen < ipHeaderLen) return;
 
-                // 解析并格式化 IP 地址
+                // 解析并格式化IP地址
                 char buf[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &ipHdr->ip_src, buf, sizeof(buf));
                 srcAddr = QString::fromLatin1(buf);
                 inet_ntop(AF_INET, &ipHdr->ip_dst, buf, sizeof(buf));
                 dstAddr = QString::fromLatin1(buf);
 
-                // 计算 TCP 头部位置与长度
+                // 计算TCP头部位置与长度
                 const u_char* tcpPtr = packet + sizeof(ether_header) + ipHeaderLen;
                 struct tcp_header rawTcp;
                 memcpy(&rawTcp, tcpPtr, sizeof(rawTcp));  // 防止对齐问题
@@ -350,7 +463,7 @@ void PacketCapture::run()
                 size_t tcpDataLength = totalLen - ipHeaderLen - tcpHeaderLen;
                 const u_char* tcpData = packet + tcpDataOffset;
 
-                // HTTPS (TLS) 检测
+                // HTTPS(TLS)检测
                 bool isTls = false;
                 QString tlsInfo;
                 if (tcpDataLength >= 5 && tcpData[0] == 0x16 && tcpData[1] == 0x03 && tcpData[2] <= 0x04) {
@@ -361,7 +474,7 @@ void PacketCapture::run()
                         isTls = true;
                         protocol = "HTTPS";
 
-                        // 仅处理 ClientHello/ServerHello
+                        // 仅处理ClientHello/ServerHello
                         if (tcpDataLength >= 6 && tcpData[5] == 0x01) {  // Client Hello
                             const u_char* pos = tcpData + 43;
                             if (pos < tcpData + tcpDataLength) {
@@ -434,6 +547,8 @@ void PacketCapture::run()
                                         .arg(header->ts.tv_sec)
                                         .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0'));
 
+                updateFlowStats(srcAddr, dstAddr, header->len, header->ts);
+
                 // HTTP 请求/响应检测
                 if (!isTls) {
                     bool isHttpRequest = (tcpDataLength >= 4 && (
@@ -498,6 +613,13 @@ void PacketCapture::run()
                                                .arg(header->len)
                                                .arg(timestamp)
                                                .arg(httpInfo);
+
+                            int tmpCount = this->m_packetCount;
+                            applyAIModel(srcAddr, dstAddr, protocol, header->ts.tv_sec, rawTcp.th_sport, rawTcp.th_dport,
+                                        [tmpCount, this](const QString &category) {
+                                            qDebug() << tmpCount << "的分类结果为: " << category;
+                                            emit this->PacketCapture::categoryReceived(tmpCount, category);
+                                        });
                             emit packetCaptured(info, httpBody, hexData);
                             return;
                         }
@@ -515,8 +637,14 @@ void PacketCapture::run()
                                        .arg(header->len)
                                        .arg(timestamp)
                                        .arg(tlsInfo);
+
+                    int tmpCount = this->m_packetCount;
+                    applyAIModel(srcAddr, dstAddr, protocol, header->ts.tv_sec, rawTcp.th_sport, rawTcp.th_dport,
+                                 [tmpCount, this](const QString &category) {
+                                     qDebug() << tmpCount << "的分类结果为: " << category;
+                                     emit this->PacketCapture::categoryReceived(tmpCount, category);
+                                 });
                     emit packetCaptured(info, httpBody, hexData);
-                    return;
                 }
 
                 // 不是 HTTP/HTTPS，显示 TCP Flags
@@ -537,6 +665,14 @@ void PacketCapture::run()
                                    .arg(header->len)
                                    .arg(timestamp)
                                    .arg(tcpFlags.trimmed());
+
+                int tmpCount = this->m_packetCount;
+                // emit applyAIModel(AIModelInputFormatter(rawTcp.th_sport, rawTcp.th_dport, protocol, getFlowStats(srcAddr, dstAddr), header->ts.tv_sec, srcAddr, dstAddr));
+                applyAIModel(srcAddr, dstAddr, protocol, header->ts.tv_sec, rawTcp.th_sport, rawTcp.th_dport,
+                             [tmpCount, this](const QString &category) {
+                                 qDebug() << tmpCount << "的分类结果为: " << category;
+                                 emit this->PacketCapture::categoryReceived(tmpCount, category);
+                             });
                 emit packetCaptured(info, httpBody, hexData);
             }
             else if (ipHdr->ip_proto == IPPROTO_UDP) {
@@ -554,6 +690,8 @@ void PacketCapture::run()
 
                 // 计算载荷长度（UDP长度 - 头长度）
                 uint16_t payloadLen = udpLen - sizeof(udp_header);
+
+                updateFlowStats(srcAddr, dstAddr, header->len, header->ts);
 
                 // 构造显示信息
                 QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 Time=%8.%9 Payload=%10")
@@ -577,6 +715,13 @@ void PacketCapture::run()
 
                 qDebug() << m_packetCount << " UDP packet info formatted.";
 
+
+                int tmpCount = this->m_packetCount;
+                applyAIModel(srcAddr, dstAddr, protocol, header->ts.tv_sec, srcPort, dstPort,
+                             [tmpCount, this](const QString &category) {
+                                 qDebug() << tmpCount << "的分类结果为: " << category;
+                                 emit this->PacketCapture::categoryReceived(tmpCount, category);
+                             });
                 emit packetCaptured(info, httpBody, hexData);
             }
         }
@@ -634,6 +779,8 @@ void PacketCapture::run()
             default: upperProtocol = QString("Proto=%1").arg(next_header);
             }
 
+            updateFlowStats(srcAddr, dstAddr, header->len, header->ts);
+
             // 构造显示信息
             QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6.%7 Payload=%8 Next=%9")
                                .arg(++m_packetCount)//, 6, 10, QLatin1Char(' '))  // 包序号
@@ -648,6 +795,12 @@ void PacketCapture::run()
 
             qDebug() << m_packetCount << " IPv6 packet info formatted.";
 
+            // int tmpCount = this->m_packetCount;
+            // applyAIModel(srcAddr, dstAddr, protocol, header->ts.tv_sec, rawTcp.th_sport, rawTcp.th_dport,
+            //              [tmpCount, this](const QString &category) {
+            //                  qDebug() << tmpCount << "的分类结果为: " << category;
+            //                  emit this->PacketCapture::categoryReceived(tmpCount, category);
+            //              });
             emit packetCaptured(info, httpBody, hexData);
         }
         else if (eth_type == ETHERTYPE_ARP) {
@@ -680,6 +833,7 @@ void PacketCapture::run()
                     case 2: op = "Reply"; break;
                     default: op = QString("Op%1").arg(ntohs(arp->oper));
                 }
+                updateFlowStats(srcMac, dstMac, header->len, header->ts);
                 QString info = QString("[%1] %2(%3) → %4(%5) ARP Len=%6 Time=%7.%8 %9")
                                    .arg(++m_packetCount)
                                    .arg(srcIp)
@@ -690,6 +844,14 @@ void PacketCapture::run()
                                    .arg(header->ts.tv_sec)
                                    .arg(header->ts.tv_usec)
                                    .arg(op);
+
+                // int tmpCount = this->m_packetCount;
+                // applyAIModel(srcAddr, dstAddr, protocol, header->ts.tv_sec, rawTcp.th_sport, rawTcp.th_dport,
+                //              [tmpCount, this](const QString &category) {
+                //                  qDebug() << tmpCount << "的分类结果为: " << category;
+                //                  emit this->PacketCapture::categoryReceived(tmpCount, category);
+                //              });
+
                 emit packetCaptured(info, httpBody, hexData);
             } else {
                 qWarning() << "Invalid ARP packet length";

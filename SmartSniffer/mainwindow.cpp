@@ -18,23 +18,36 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , m_capture(new PacketCapture(this))
+    , m_capture(new PacketCapture())
 {
     ui->setupUi(this);
     initializeUi();
     loadInterfaces();
     connectSignals();
 
+    QThread *workerThread = new QThread;
+    m_capture->moveToThread(workerThread);
+    workerThread->start();
+    QMetaObject::invokeMethod(m_capture, "initNetwork", Qt::QueuedConnection);
+
     memset(packetList, 0, sizeof(packetList));
     listHead = listTail = removedRowCount = 0;
 
+    aiServerProcess = new QProcess(this);
+    aiServerProcess->start("ai_server.exe");
 
+    if (!aiServerProcess->waitForStarted(30000))
+        qDebug() << "AI Server failed to start.";
+    else
+        qDebug() << "AI Server started.";
 }
 
 MainWindow::~MainWindow()
 {
     m_capture->onStopCapture();
     m_capture->wait();
+    aiServerProcess->terminate();
+    aiServerProcess->waitForFinished();
     delete ui;
 }
 
@@ -142,28 +155,10 @@ void MainWindow::connectSignals()
     connect(this, &MainWindow::configChanged, m_capture, &PacketCapture::onConfigChanged);
 
     connect(ui->tablePackets, &QTableWidget::itemSelectionChanged, this, &MainWindow::onPacketSelected);
-    // connect(ui->tablePackets, &QTableWidget::cellEntered, this, [=](int row, int){
-    //     for(int col=0; col<ui->tablePackets->columnCount(); ++col){
-    //         QWidget *cellWidget = ui->tablePackets->cellWidget(row, col);
-    //         if(!cellWidget){
-    //             cellWidget = new QWidget;
-    //             cellWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
-    //             ui->tablePackets->setCellWidget(row, col, cellWidget);
-    //         }
-    //         auto *effect = new QGraphicsColorizeEffect(cellWidget);
-    //         effect->setColor(QColor(255, 255, 255));
-    //         effect->setStrength(1.0);
-    //         cellWidget->setGraphicsEffect(effect);
-    //         auto *anim = new QPropertyAnimation(effect, "strength", this);
-    //         anim->setDuration(300);
-    //         anim->setStartValue(1.0);
-    //         anim->setEndValue(0.0);
-    //         anim->setEasingCurve(QEasingCurve::OutQuad);
-    //         anim->start(QAbstractAnimation::DeleteWhenStopped);
-    //     }
-    // });
 
     connect(m_capture, &PacketCapture::packetCaptured, this, &MainWindow::handlePacketCaptured);
+
+    connect(m_capture, &PacketCapture::categoryReceived, this, &MainWindow::setAILabel);
 }
 
 QString MainWindow::getCurrInterfaceName()
@@ -238,12 +233,12 @@ void MainWindow::onPacketSelected()
 
 void MainWindow::handlePacketCaptured(const QString &packetInfo, const QString &httpBody, const QString &hexData)
 {
-    qDebug() << packetInfo << "\n";
+    qDebug() << packetInfo;
     Packet pkt;
 
     // QString("[%1] %2 → %3 %4 Len=%5 Time=%6 Flags=%7")
     QStringList parts = packetInfo.split(' ');
-    qDebug() << parts.value(0) << " " << parts.value(1) << " " << parts.value(2) << " " << parts.value(3) << " " << parts.value(4) << " " << parts.value(5) << " " << parts.value(6);
+    // qDebug() << parts.value(0) << " " << parts.value(1) << " " << parts.value(2) << " " << parts.value(3) << " " << parts.value(4) << " " << parts.value(5) << " " << parts.value(6);
     pkt.id = parts.value(0).remove("[").remove("]");
     pkt.timestamp = parts.value(6).remove("Time=");
     pkt.srcIP = parts.value(1);
@@ -262,6 +257,13 @@ void MainWindow::handlePacketCaptured(const QString &packetInfo, const QString &
     packetList[listTail] = pkt;
     listTail = (listTail + 1) % TABLE_SIZE;
     appendPacketRow(pkt);
+}
+
+void MainWindow::setAILabel(const int &row, const QString &categoryLabel)
+{
+    if (row <= removedRowCount) return;
+    int idx = (row + removedRowCount) % TABLE_SIZE;
+    ui->tablePackets->setItem(idx, 7, new QTableWidgetItem(categoryLabel));
 }
 
 void MainWindow::appendPacketRow(const Packet &pkt)

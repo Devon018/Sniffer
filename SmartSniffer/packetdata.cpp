@@ -2,7 +2,7 @@
 
 PacketData::PacketData() {}
 
-bool PacketData::insert(QString &key, QString &value)
+bool PacketData::insert(const QString key, const QString value)
 {
     bool success = false;
     if (key == "source_port")
@@ -22,7 +22,7 @@ bool PacketData::insert(QString &key, QString &value)
     return success;
 }
 
-QString PacketData::toJson()
+QByteArray PacketData::toJson()
 {
     QJsonDocument doc(data);
     return doc.toJson(QJsonDocument::Compact);

@@ -6,12 +6,12 @@
 
 class PacketData
 {
-private:
-    QJsonObject data;
 public:
+    QJsonObject data;
+
     PacketData();
-    bool insert(QString &key, QString &value);
-    QString toJson();
+    bool insert(const QString key, const QString value);
+    QByteArray toJson();
 };
 
 #endif // PACKETDATA_H

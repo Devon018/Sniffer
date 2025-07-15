@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QAtomicInteger>
+#include <QNetworkAccessManager>
 #include <pcap.h>
 #include <qthread.h>
 #include "configdata.h"
@@ -119,10 +120,28 @@ public:
     void setDeviceName(const QString &deviceName);
     void setFilterRule(const QString &filterRule);
 
+    // 统计相关成员
+    struct FlowStats {
+        quint64 totalFwdPackets = 0;      // 前向数据包总数
+        quint64 totalFwdLength = 0;       // 前向数据包总长度
+        qint64 lastPacketTime = -1;       // 上一个数据包的时间戳(微秒)
+        quint64 totalIAT = 0;             // 流间到达时间总和(微秒)
+        quint64 packetCount = 0;          // 用于计算平均值的包计数
+    };
+
+    QMap<QString, FlowStats> flowStats;   // 按流(源IP+目的IP)存储统计数据
+
+    // 获取指定流的统计数据
+    // FlowStats getSingleFlowStat(const QString& srcAddr, const QString& dstAddr) const;
+    QVariantMap getFlowStats(const QString& srcAddr, const QString& dstAddr) const;
+
+
 signals:
     void packetCaptured(const QString &packetInfo, const QString &httpBody, const QString &hexData);
+    void categoryReceived(const int row, const QString category);
 
 public slots:
+    void initNetwork();
     void onStartCapture();
     void onStopCapture();
     void onConfigChanged(const ConfigData &config);
@@ -136,6 +155,15 @@ private:
     QString m_filterRule;
     QAtomicInteger<quint32> m_stop;
     QAtomicInteger<unsigned long long> m_packetCount{0};
+    QNetworkAccessManager *m_networkManager;
+
+    void applyAIModel(const QString &srcIP, const QString &dstIP,
+                         const QString &protocol, const long &ts_sec,
+                         u_short &srcPort, u_short &dstPort,
+                         std::function<void(const QString &)> callback);
+
+    //更新流统计信息
+    void updateFlowStats(const QString& srcAddr, const QString& dstAddr, quint32 packetLen, const timeval& timestamp);
 
     QString extractPayload(const u_char* packet, const struct pcap_pkthdr* header);
 
