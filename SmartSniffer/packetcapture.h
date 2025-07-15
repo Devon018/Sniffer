@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QAtomicInteger>
-#include <QNetworkAccessManager>
 #include <pcap.h>
 #include <qthread.h>
 #include "configdata.h"
@@ -120,14 +119,24 @@ public:
     void setDeviceName(const QString &deviceName);
     void setFilterRule(const QString &filterRule);
 
-    // 统计相关成员
     struct FlowStats {
-        quint64 totalFwdPackets = 0;      // 前向数据包总数
-        quint64 totalFwdLength = 0;       // 前向数据包总长度
-        qint64 lastPacketTime = -1;       // 上一个数据包的时间戳(微秒)
-        quint64 totalIAT = 0;             // 流间到达时间总和(微秒)
-        quint64 packetCount = 0;          // 用于计算平均值的包计数
+        quint64 totalFwdPackets = 0;
+        quint64 totalFwdLength = 0;
+        quint64 totalIAT = 0;
+        int packetCount = 0;
+
+        quint64 lastPacketTime = 0;
+
+        quint64 flowStartTime = 0;
+        quint64 flowEndTime = 0;
+        quint32 fwdHeaderLengthTotal = 0;
+
+        quint32 fwdPacketLengthMax = 0;
+        quint32 fwdPacketLengthSumSquares = 0;  // for std dev
+        quint32 maxPacketLength = 0;
+        quint32 minIAT = std::numeric_limits<quint32>::max();
     };
+
 
     QMap<QString, FlowStats> flowStats;   // 按流(源IP+目的IP)存储统计数据
 
@@ -138,10 +147,11 @@ public:
 
 signals:
     void packetCaptured(const QString &packetInfo, const QString &httpBody, const QString &hexData);
-    void categoryReceived(const int row, const QString category);
+    // void categoryReceived(const int row, const QString category);
+    void applyAIModel(QByteArray data, int packetId);
 
 public slots:
-    void initNetwork();
+    // void initNetwork();
     void onStartCapture();
     void onStopCapture();
     void onConfigChanged(const ConfigData &config);
@@ -155,15 +165,14 @@ private:
     QString m_filterRule;
     QAtomicInteger<quint32> m_stop;
     QAtomicInteger<unsigned long long> m_packetCount{0};
-    QNetworkAccessManager *m_networkManager;
 
-    void applyAIModel(const QString &srcIP, const QString &dstIP,
-                         const QString &protocol, const long &ts_sec,
-                         u_short &srcPort, u_short &dstPort,
-                         std::function<void(const QString &)> callback);
+    // void applyAIModel(const QString &srcIP, const QString &dstIP,
+    //                      const QString &protocol, const long &ts_sec,
+    //                      u_short &srcPort, u_short &dstPort,
+    //                      std::function<void(const QString &)> callback);
 
     //更新流统计信息
-    void updateFlowStats(const QString& srcAddr, const QString& dstAddr, quint32 packetLen, const timeval& timestamp);
+    void updateFlowStats(const QString& srcAddr, const QString& dstAddr, quint32 packetLen, const timeval& timestamp, quint32 headerLen);
 
     QString extractPayload(const u_char* packet, const struct pcap_pkthdr* header);
 

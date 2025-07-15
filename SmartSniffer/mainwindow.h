@@ -5,6 +5,7 @@
 #include <QString>
 #include <QStringList>
 #include <QProcess>
+#include <QNetworkAccessManager>
 #include "packetcapture.h"
 
 struct Packet {
@@ -49,6 +50,7 @@ signals:
     void receivePacket(const Packet &pkt);
     void displayAlert(const AlertInfo &info);
     void configChanged(const ConfigData &data);
+    void categoryReceived(int packetId, const QString category);
 
 private slots:
     void onStartCapture();    // 开始按钮点击，发送startCapture
@@ -57,7 +59,8 @@ private slots:
     void onExportData();
     void onPacketSelected();
     void handlePacketCaptured(const QString &packetInfo, const QString &httpBody, const QString &hexData);
-    void setAILabel(const int &row, const QString &categoryLabel);
+    void handleApplyAIModel(QByteArray data, int packetId);
+    void setAILabel(int packetId, const QString category);
 
 private:
     Ui::MainWindow *ui;
@@ -65,6 +68,7 @@ private:
     Packet packetList[TABLE_SIZE];
     int listHead, listTail, removedRowCount;
     QProcess *aiServerProcess;
+    QNetworkAccessManager *m_networkManager;
 
     void initializeUi();
     void connectSignals();

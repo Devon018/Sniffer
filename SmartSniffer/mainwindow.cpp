@@ -5,8 +5,10 @@
 #include <QHeaderView>
 #include <QDateTime>
 #include <QMessageBox>
-#include <QPropertyAnimation>
-#include <QGraphicsColorizeEffect>
+#include <QNetworkReply>
+#include <QJsonObject>
+#include <QJsonDocument>
+
 #include <winsock2.h>
 #include <iphlpapi.h>
 #include <stdio.h>
@@ -18,17 +20,18 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , m_capture(new PacketCapture())
+    , m_capture(new PacketCapture(this))
+    , m_networkManager(new QNetworkAccessManager(this))
 {
     ui->setupUi(this);
     initializeUi();
     loadInterfaces();
     connectSignals();
 
-    QThread *workerThread = new QThread;
-    m_capture->moveToThread(workerThread);
-    workerThread->start();
-    QMetaObject::invokeMethod(m_capture, "initNetwork", Qt::QueuedConnection);
+    // QThread *workerThread = new QThread;
+    // m_capture->moveToThread(workerThread);
+    // workerThread->start();
+    // QMetaObject::invokeMethod(m_capture, "initNetwork", Qt::QueuedConnection);
 
     memset(packetList, 0, sizeof(packetList));
     listHead = listTail = removedRowCount = 0;
@@ -158,7 +161,8 @@ void MainWindow::connectSignals()
 
     connect(m_capture, &PacketCapture::packetCaptured, this, &MainWindow::handlePacketCaptured);
 
-    connect(m_capture, &PacketCapture::categoryReceived, this, &MainWindow::setAILabel);
+    connect(m_capture, &PacketCapture::applyAIModel, this, &MainWindow::handleApplyAIModel);
+    connect(this, &MainWindow::categoryReceived, this, &MainWindow::setAILabel);
 }
 
 QString MainWindow::getCurrInterfaceName()
@@ -259,11 +263,47 @@ void MainWindow::handlePacketCaptured(const QString &packetInfo, const QString &
     appendPacketRow(pkt);
 }
 
-void MainWindow::setAILabel(const int &row, const QString &categoryLabel)
+void MainWindow::handleApplyAIModel(QByteArray data, int packetId)
 {
-    if (row <= removedRowCount) return;
-    int idx = (row + removedRowCount) % TABLE_SIZE;
-    ui->tablePackets->setItem(idx, 7, new QTableWidgetItem(categoryLabel));
+    qDebug() << "Sending data: " << data.toStdString();
+    if (!m_networkManager) {
+        m_networkManager = new QNetworkAccessManager(this);
+    }
+
+    QNetworkRequest request(QUrl("http://127.0.0.1:5001/predict"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QNetworkReply *reply = m_networkManager->post(request, data);
+
+    connect(reply, &QNetworkReply::finished, this, [=]() {
+        int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        qDebug() << "[AI] HTTP status code:" << statusCode;
+
+        QByteArray response = reply->readAll();
+        qDebug() << "[AI] Raw response:" << response;
+
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(response, &err);
+
+        if (err.error != QJsonParseError::NoError) {
+            qWarning() << "[AI] JSON parse error:" << err.errorString();
+            emit categoryReceived(packetId, "N/A");
+        } else {
+            QJsonObject obj = doc.object();
+            QString category = obj.value("category").toString("N/A");
+            qDebug() << "[AI] Prediction for packet" << packetId << ":" << category;
+            emit categoryReceived(packetId, category);
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void MainWindow::setAILabel(const int packetId, const QString category)
+{
+    if (packetId <= removedRowCount) return;
+    int idx = (packetId + removedRowCount) % TABLE_SIZE;
+    ui->tablePackets->setItem(idx, 7, new QTableWidgetItem(category));
 }
 
 void MainWindow::appendPacketRow(const Packet &pkt)
@@ -282,6 +322,8 @@ void MainWindow::appendPacketRow(const Packet &pkt)
     ui->tablePackets->setItem(row, 4, new QTableWidgetItem(pkt.protocol));
     ui->tablePackets->setItem(row, 5, new QTableWidgetItem(QString::number(pkt.length)));
     ui->tablePackets->setItem(row, 6, new QTableWidgetItem(pkt.extraInfos));
+    if (pkt.protocol == "IPv6" || pkt.protocol == "ARP")
+        ui->tablePackets->setItem(row, 7, new QTableWidgetItem("N/A"));
     ui->tablePackets->scrollToBottom();
 }
 
