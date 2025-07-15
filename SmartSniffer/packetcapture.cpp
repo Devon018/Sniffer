@@ -1,5 +1,6 @@
 #include "packetcapture.h"
 #include <QDateTime>
+#include <cstring>
 #include <pcap.h>
 
 #include <WinSock2.h>
@@ -45,6 +46,11 @@ PacketCapture::~PacketCapture()
     }
 }
 
+bool PacketCapture::isCapturing()
+{
+    return this->m_pcapHandle != NULL;
+}
+
 void PacketCapture::setDeviceName(const QString &deviceName)
 {
     m_deviceName = deviceName;
@@ -74,6 +80,165 @@ void PacketCapture::onConfigChanged(const ConfigData &config)
     this->setDeviceName(config.device);
     this->setFilterRule(config.filter);
     qDebug() << "Device set: " << this->m_deviceName << "; Filter set: " << this->m_filterRule;
+}
+
+QString PacketCapture::extractPayload(const u_char* packet, const struct pcap_pkthdr* header) {
+    QString payload;
+
+    if (header->caplen < sizeof(ether_header)) {
+        return payload;  // 不够 Ethernet 头长度
+    }
+
+    // 获取以太网头
+    const ether_header* eth_hdr = reinterpret_cast<const ether_header*>(packet);
+    uint16_t etherType = ntohs(eth_hdr->ether_type);
+
+    const u_char* data = packet + sizeof(ether_header);
+    int remaining = header->caplen - sizeof(ether_header);
+
+    if (etherType == 0x0800) {
+        // IPv4
+        if (remaining < sizeof(ip_header)) return payload;
+
+        const ip_header* ip_hdr = reinterpret_cast<const ip_header*>(data);
+        int ip_header_len = (ip_hdr->ip_hl) * 4;
+
+        if (remaining < ip_header_len) return payload;
+
+        data += ip_header_len;
+        remaining -= ip_header_len;
+
+        if (ip_hdr->ip_proto == IPPROTO_TCP) {
+            if (remaining < sizeof(tcp_header)) return payload;
+            const tcp_header* tcp_hdr = reinterpret_cast<const tcp_header*>(data);
+            int tcp_header_len = (tcp_hdr->th_offx2 >> 4) * 4;
+
+            if (remaining < tcp_header_len) return payload;
+
+            const u_char* payload_start = data + tcp_header_len;
+            int payload_len = remaining - tcp_header_len;
+
+            if (payload_len > 0) {
+                QByteArray payloadBytes(reinterpret_cast<const char*>(payload_start), payload_len);
+                payload = QString::fromUtf8(payloadBytes);
+
+                // HTTP body 提取
+                if (payload.startsWith("GET ") || payload.startsWith("POST") ||
+                    payload.startsWith("HEAD") || payload.startsWith("PUT ") ||
+                    payload.startsWith("DELETE") || payload.startsWith("OPTIONS") ||
+                    payload.startsWith("HTTP/")) {
+                    int body_start = payload.indexOf("\r\n\r\n");
+                    if (body_start != -1) {
+                        body_start += 4;
+                        payload = payload.mid(body_start);
+                    }
+                }
+            }
+        }
+        else if (ip_hdr->ip_proto == IPPROTO_UDP) {
+            if (remaining < sizeof(udp_header)) return payload;
+            const udp_header* udp_hdr = reinterpret_cast<const udp_header*>(data);
+            int udp_header_len = 8;
+
+            const u_char* payload_start = data + udp_header_len;
+            int payload_len = ntohs(udp_hdr->uh_ulen) - udp_header_len;
+
+            if (payload_len > 0 && payload_len <= (remaining - udp_header_len)) {
+                QByteArray payloadBytes(reinterpret_cast<const char*>(payload_start), payload_len);
+                payload = QString::fromUtf8(payloadBytes);
+            }
+        }
+        // else 可以添加 ICMP 等协议支持
+    }
+    else if (etherType == 0x86DD) {
+        // IPv6
+        if (remaining < sizeof(ip6_hdr)) return payload;
+
+        const ip6_hdr* ip6 = reinterpret_cast<const ip6_hdr*>(data);
+        data += sizeof(ip6_hdr);
+        remaining -= sizeof(ip6_hdr);
+
+        if (ip6->ip6_nxt == IPPROTO_TCP) {
+            if (remaining < sizeof(tcp_header)) return payload;
+            const tcp_header* tcp_hdr = reinterpret_cast<const tcp_header*>(data);
+            int tcp_header_len = (tcp_hdr->th_offx2 >> 4) * 4;
+
+            if (remaining < tcp_header_len) return payload;
+
+            const u_char* payload_start = data + tcp_header_len;
+            int payload_len = remaining - tcp_header_len;
+
+            if (payload_len > 0) {
+                QByteArray payloadBytes(reinterpret_cast<const char*>(payload_start), payload_len);
+                payload = QString::fromUtf8(payloadBytes);
+            }
+        }
+        else if (ip6->ip6_nxt == IPPROTO_UDP) {
+            if (remaining < sizeof(udp_header)) return payload;
+            const udp_header* udp_hdr = reinterpret_cast<const udp_header*>(data);
+            int udp_header_len = 8;
+
+            const u_char* payload_start = data + udp_header_len;
+            int payload_len = ntohs(udp_hdr->uh_ulen) - udp_header_len;
+
+            if (payload_len > 0 && payload_len <= (remaining - udp_header_len)) {
+                QByteArray payloadBytes(reinterpret_cast<const char*>(payload_start), payload_len);
+                payload = QString::fromUtf8(payloadBytes);
+            }
+        }
+    }
+    else if (etherType == 0x0806) {
+        // ARP
+        if (remaining < sizeof(arp_header)) return payload;
+
+        const arp_header* arp = reinterpret_cast<const arp_header*>(data);
+        QString sha = QString("%1:%2:%3:%4:%5:%6")
+                          .arg(arp->sha[0], 2, 16, QLatin1Char('0'))
+                          .arg(arp->sha[1], 2, 16, QLatin1Char('0'))
+                          .arg(arp->sha[2], 2, 16, QLatin1Char('0'))
+                          .arg(arp->sha[3], 2, 16, QLatin1Char('0'))
+                          .arg(arp->sha[4], 2, 16, QLatin1Char('0'))
+                          .arg(arp->sha[5], 2, 16, QLatin1Char('0'));
+        QString spa = QString("%1.%2.%3.%4")
+                          .arg(arp->spa[0])
+                          .arg(arp->spa[1])
+                          .arg(arp->spa[2])
+                          .arg(arp->spa[3]);
+        QString tha = QString("%1:%2:%3:%4:%5:%6")
+                          .arg(arp->tha[0], 2, 16, QLatin1Char('0'))
+                          .arg(arp->tha[1], 2, 16, QLatin1Char('0'))
+                          .arg(arp->tha[2], 2, 16, QLatin1Char('0'))
+                          .arg(arp->tha[3], 2, 16, QLatin1Char('0'))
+                          .arg(arp->tha[4], 2, 16, QLatin1Char('0'))
+                          .arg(arp->tha[5], 2, 16, QLatin1Char('0'));
+        QString tpa = QString("%1.%2.%3.%4")
+                          .arg(arp->tpa[0])
+                          .arg(arp->tpa[1])
+                          .arg(arp->tpa[2])
+                          .arg(arp->tpa[3]);
+
+        payload = QString("ARP: %1 (%2) → %3 (%4)")
+                      .arg(spa, sha)
+                      .arg(tpa, tha);
+    }
+
+    return payload;
+}
+
+const void* memmem(const void* haystack, size_t haystacklen,
+                      const void* needle, size_t needlelen)
+{
+    if (needlelen == 0) return haystack;
+
+    const uint8_t* h = static_cast<const uint8_t*>(haystack);
+    const uint8_t* n = static_cast<const uint8_t*>(needle);
+
+    for (size_t i = 0; i <= haystacklen - needlelen; ++i) {
+        if (memcmp(h + i, n, needlelen) == 0) {
+            return h + i;
+        }
+    }
+    return nullptr;
 }
 
 void PacketCapture::run()
@@ -126,6 +291,8 @@ void PacketCapture::run()
 
         QString protocol = "Unknown";
         QString srcAddr, dstAddr;
+        QString httpBody = extractPayload(packet, header);
+        QString hexData = httpBody.toUtf8().toHex(' ').toUpper();
 
         // 如果是 IPv4 包
         if (eth_type == ETHERTYPE_IP) {
@@ -153,48 +320,224 @@ void PacketCapture::run()
 
             QString info = QString("%1 > %2").arg(srcIP).arg(dstIP);
 
-            // 解析传输层协议
+            qDebug() << "http body: " << httpBody;
+
             if (ipHdr->ip_proto == IPPROTO_TCP) {
                 protocol = "TCP";
 
-                // 计算 TCP 头位置（考虑 IP 头长度）
-                const tcp_header* tcp_hdr = reinterpret_cast<const tcp_header*>(
-                    packet + sizeof(ether_header) + (ipHdr->ip_hl * 4)  // ip_hl 是 32-bit words
-                    );
+                // 安全解析 IP 头长度
+                uint8_t ihl = ipHdr->ip_hl & 0x0F;
+                size_t ipHeaderLen = ihl * 4;
+                uint16_t totalLen = ntohs(ipHdr->ip_len);
+                if (totalLen < ipHeaderLen) return;
 
-                // 解析 TCP 标志位
-                QString tcpFlags;
-#ifdef _WIN32
-                if (tcp_hdr->th_flags & TH_SYN) tcpFlags += "SYN ";
-                if (tcp_hdr->th_flags & TH_ACK) tcpFlags += "ACK ";
-                if (tcp_hdr->th_flags & TH_FIN) tcpFlags += "FIN ";
-                if (tcp_hdr->th_flags & TH_RST) tcpFlags += "RST ";
-#else
-                if (tcp_hdr->th_flags & TH_SYN) tcpFlags += "SYN ";
-                if (tcp_hdr->th_flags & TH_ACK) tcpFlags += "ACK ";
-                if (tcp_hdr->th_flags & TH_FIN) tcpFlags += "FIN ";
-                if (tcp_hdr->th_flags & TH_RST) tcpFlags += "RST ";
-#endif
+                // 解析并格式化 IP 地址
+                char buf[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &ipHdr->ip_src, buf, sizeof(buf));
+                srcAddr = QString::fromLatin1(buf);
+                inet_ntop(AF_INET, &ipHdr->ip_dst, buf, sizeof(buf));
+                dstAddr = QString::fromLatin1(buf);
 
-                // 格式化时间戳（秒.微秒）
+                // 计算 TCP 头部位置与长度
+                const u_char* tcpPtr = packet + sizeof(ether_header) + ipHeaderLen;
+                struct tcp_header rawTcp;
+                memcpy(&rawTcp, tcpPtr, sizeof(rawTcp));  // 防止对齐问题
+                uint8_t thl = (rawTcp.th_offx2 >> 4) & 0x0F;
+                size_t tcpHeaderLen = thl * 4;
+                if (totalLen < ipHeaderLen + tcpHeaderLen) return;
+
+                size_t tcpDataOffset = sizeof(ether_header) + ipHeaderLen + tcpHeaderLen;
+                size_t tcpDataLength = totalLen - ipHeaderLen - tcpHeaderLen;
+                const u_char* tcpData = packet + tcpDataOffset;
+
+                // HTTPS (TLS) 检测
+                bool isTls = false;
+                QString tlsInfo;
+                if (tcpDataLength >= 5 && tcpData[0] == 0x16 && tcpData[1] == 0x03 && tcpData[2] <= 0x04) {
+                    uint16_t recLen;
+                    memcpy(&recLen, tcpData + 3, sizeof(recLen));
+                    recLen = ntohs(recLen);
+                    if (recLen + 5 <= tcpDataLength) {
+                        isTls = true;
+                        protocol = "HTTPS";
+
+                        // 仅处理 ClientHello/ServerHello
+                        if (tcpDataLength >= 6 && tcpData[5] == 0x01) {  // Client Hello
+                            const u_char* pos = tcpData + 43;
+                            if (pos < tcpData + tcpDataLength) {
+                                // 跳过 SessionID
+                                uint8_t sidLen = *pos++;
+                                pos += sidLen;
+                                // 跳过 CipherSuites
+                                if (pos + 2 <= tcpData + tcpDataLength) {
+                                    uint16_t csLen;
+                                    memcpy(&csLen, pos, 2);
+                                    csLen = ntohs(csLen);
+                                    pos += 2 + csLen;
+                                }
+                                // 跳过 CompressionMethods
+                                if (pos < tcpData + tcpDataLength) {
+                                    uint8_t cmLen = *pos++;
+                                    pos += cmLen;
+                                }
+                                // 解析扩展字段寻找 SNI
+                                if (pos + 4 <= tcpData + tcpDataLength) {
+                                    uint16_t extLen;
+                                    memcpy(&extLen, pos, 2);
+                                    extLen = ntohs(extLen);
+                                    pos += 2;
+                                    const u_char* extEnd = pos + extLen;
+                                    while (pos + 4 <= extEnd) {
+                                        uint16_t extType, extFieldLen;
+                                        memcpy(&extType, pos, 2);
+                                        memcpy(&extFieldLen, pos + 2, 2);
+                                        extType = ntohs(extType);
+                                        extFieldLen = ntohs(extFieldLen);
+                                        if (extType == 0x0000 && pos + 4 + extFieldLen <= extEnd) {
+                                            // SNI
+                                            uint16_t nameListLen;
+                                            memcpy(&nameListLen, pos + 4, 2);
+                                            nameListLen = ntohs(nameListLen);
+                                            const u_char* snPos = pos + 6;
+                                            const u_char* snEnd = snPos + nameListLen;
+                                            while (snPos + 3 <= snEnd) {
+                                                uint8_t nameType = *snPos;
+                                                uint16_t nameLen;
+                                                memcpy(&nameLen, snPos + 1, 2);
+                                                nameLen = ntohs(nameLen);
+                                                if (nameType == 0x00 && snPos + 3 + nameLen <= snEnd) {
+                                                    QString serverName = QString::fromUtf8(
+                                                        reinterpret_cast<const char*>(snPos + 3), nameLen);
+                                                    tlsInfo = QString("Client Hello (SNI: %1)").arg(serverName);
+                                                    break;
+                                                }
+                                                snPos += 3 + nameLen;
+                                            }
+                                            break;
+                                        }
+                                        pos += 4 + extFieldLen;
+                                    }
+                                }
+                            }
+                            if (tlsInfo.isEmpty()) tlsInfo = "Client Hello";
+                        }
+                        else if (tcpDataLength >= 6 && tcpData[5] == 0x02) {
+                            tlsInfo = "Server Hello";
+                        }
+                        else {
+                            tlsInfo = "TLS Handshake";
+                        }
+                    }
+                }
+
                 QString timestamp = QString("%1.%2")
                                         .arg(header->ts.tv_sec)
                                         .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0'));
 
-                // 构造显示信息
-                QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6 Flags=%7")
-                                   // .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 6位宽序号
+                // HTTP 请求/响应检测
+                if (!isTls) {
+                    bool isHttpRequest = (tcpDataLength >= 4 && (
+                                              memcmp(tcpData, "GET ", 4) == 0 ||
+                                              memcmp(tcpData, "POST", 4) == 0 ||
+                                              memcmp(tcpData, "HEAD", 4) == 0 ||
+                                              memcmp(tcpData, "PUT ", 4) == 0 ||
+                                              memcmp(tcpData, "DELETE", 6) == 0 ||
+                                              memcmp(tcpData, "OPTIONS", 7) == 0));
+                    bool isHttpResponse = (tcpDataLength >= 5 && memcmp(tcpData, "HTTP/", 5) == 0);
+
+                    if (isHttpRequest || isHttpResponse) {
+                        protocol = "HTTP";
+                        const u_char* p = tcpData;
+                        const u_char* end = tcpData + tcpDataLength - 3;
+                        const u_char* endOfHeaders = nullptr;
+                        while (p < end) {
+                            if (p[0]=='\r' && p[1]=='\n' && p[2]=='\r' && p[3]=='\n') {
+                                endOfHeaders = p + 4;
+                                break;
+                            }
+                            ++p;
+                        }
+                        if (endOfHeaders) {
+                            size_t headersLen = endOfHeaders - tcpData;
+                            // 提取首行
+                            const u_char* lineEnd = static_cast<const u_char*>(
+                                memchr(tcpData, '\n', headersLen));
+                            QString firstLine;
+                            if (lineEnd) {
+                                firstLine = QString::fromUtf8(
+                                                reinterpret_cast<const char*>(tcpData),
+                                                lineEnd - tcpData).trimmed();
+                            }
+                            // 提取 Host
+                            QString host;
+                            if (isHttpRequest) {
+                                const u_char* hStart = static_cast<const u_char*>(
+                                    memmem(tcpData, headersLen, "Host: ", 6));
+                                if (hStart) {
+                                    hStart += 6;
+                                    const u_char* hEnd = static_cast<const u_char*>(
+                                        memchr(hStart, '\n', headersLen - (hStart - tcpData)));
+                                    if (hEnd) {
+                                        host = QString::fromUtf8(
+                                                   reinterpret_cast<const char*>(hStart),
+                                                   hEnd - hStart).trimmed();
+                                    }
+                                }
+                            }
+                            QString httpInfo = host.isEmpty()
+                                                   ? firstLine
+                                                   : QString("%1 (%2)").arg(firstLine, host);
+
+                            QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 Time=%8 HTTP: %9")
+                                               .arg(++m_packetCount)
+                                               .arg(srcAddr)
+                                               .arg(ntohs(rawTcp.th_sport))
+                                               .arg(dstAddr)
+                                               .arg(ntohs(rawTcp.th_dport))
+                                               .arg(protocol)
+                                               .arg(header->len)
+                                               .arg(timestamp)
+                                               .arg(httpInfo);
+                            emit packetCaptured(info, httpBody, hexData);
+                            return;
+                        }
+                    }
+                }
+                else {
+                    // HTTPS 显示
+                    QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 Time=%8 TLS: %9")
+                                       .arg(++m_packetCount)
+                                       .arg(srcAddr)
+                                       .arg(ntohs(rawTcp.th_sport))
+                                       .arg(dstAddr)
+                                       .arg(ntohs(rawTcp.th_dport))
+                                       .arg(protocol)
+                                       .arg(header->len)
+                                       .arg(timestamp)
+                                       .arg(tlsInfo);
+                    emit packetCaptured(info, httpBody, hexData);
+                    return;
+                }
+
+                // 不是 HTTP/HTTPS，显示 TCP Flags
+                QString tcpFlags;
+                if (rawTcp.th_flags & TH_SYN) tcpFlags += "SYN,";
+                if (rawTcp.th_flags & TH_ACK) tcpFlags += "ACK,";
+                if (rawTcp.th_flags & TH_FIN) tcpFlags += "FIN,";
+                if (rawTcp.th_flags & TH_RST) tcpFlags += "RST,";
+                tcpFlags.removeLast(); // 删去末尾的逗号
+
+                QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 Time=%8 Flags=%9")
                                    .arg(++m_packetCount)
                                    .arg(srcAddr)
+                                   .arg(ntohs(rawTcp.th_sport))
                                    .arg(dstAddr)
+                                   .arg(ntohs(rawTcp.th_dport))
                                    .arg(protocol)
                                    .arg(header->len)
                                    .arg(timestamp)
                                    .arg(tcpFlags.trimmed());
-
-                qDebug() << m_packetCount << " TCP packet info formatted.";
-
-                emit packetCaptured(info);
+                emit packetCaptured(info, httpBody, hexData);
             }
             else if (ipHdr->ip_proto == IPPROTO_UDP) {
                 protocol = "UDP";
@@ -213,8 +556,8 @@ void PacketCapture::run()
                 uint16_t payloadLen = udpLen - sizeof(udp_header);
 
                 // 构造显示信息
-                QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 Time=%8.%9 (Payload=%10)")
-                                   .arg(++m_packetCount)//, 6, 10, QLatin1Char(' '))  // 包序号
+                QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 Time=%8.%9 Payload=%10")
+                                   .arg(++m_packetCount)                          // 包序号
                                    .arg(srcAddr)                                  // 源IP
                                    .arg(srcPort)                                  // 源端口
                                    .arg(dstAddr)                                  // 目标IP
@@ -224,18 +567,6 @@ void PacketCapture::run()
                                    .arg(header->ts.tv_sec)                        // 秒
                                    .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')) // 微秒
                                    .arg(payloadLen);                               // 载荷长度
-                // QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 (Payload=%8) Time=%9.%10")
-                //                    // .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 包序号
-                //                    .arg(++m_packetCount)
-                //                    .arg(srcAddr)                                  // 源IP
-                //                    .arg(srcPort)                                  // 源端口
-                //                    .arg(dstAddr)                                  // 目标IP
-                //                    .arg(dstPort)                                  // 目标端口
-                //                    .arg(protocol)                                 // 协议
-                //                    .arg(header->len)                              // 总长度
-                //                    .arg(payloadLen)                               // 载荷长度
-                //                    .arg(header->ts.tv_sec)                        // 秒
-                //                    .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')); // 微秒
 
                 // 特殊协议识别
                 if (dstPort == 53 || srcPort == 53) {
@@ -246,7 +577,7 @@ void PacketCapture::run()
 
                 qDebug() << m_packetCount << " UDP packet info formatted.";
 
-                emit packetCaptured(info);
+                emit packetCaptured(info, httpBody, hexData);
             }
         }
         //如果是ipv6包
@@ -314,37 +645,14 @@ void PacketCapture::run()
                                .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')) // 微秒
                                .arg(payload_len)                              // 载荷长度
                                .arg(upperProtocol);                            // 上层协议
-            // QString info = QString("[%1] %2 → %3 %4 Len=%5 Payload=%6 Next=%7 Time=%8.%9")
-            //                    // .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 包序号
-            //                    .arg(++m_packetCount)
-            //                    .arg(srcAddr)                                  // 源IPv6
-            //                    .arg(dstAddr)                                  // 目标IPv6
-            //                    .arg(protocol)                                 // IPv6
-            //                    .arg(header->len)                              // 总长度
-            //                    .arg(payload_len)                              // 载荷长度
-            //                    .arg(upperProtocol)                            // 上层协议
-            //                    .arg(header->ts.tv_sec)                        // 秒
-            //                    .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')); // 微秒
 
             qDebug() << m_packetCount << " IPv6 packet info formatted.";
 
-            emit packetCaptured(info);
+            emit packetCaptured(info, httpBody, hexData);
         }
         else if (eth_type == ETHERTYPE_ARP) {
             protocol = "ARP";
             // ARP 处理
-            // ARP 头部结构定义
-            struct arp_header {
-                uint16_t htype;
-                uint16_t ptype;
-                uint8_t hlen;
-                uint8_t plen;
-                uint16_t oper;
-                uint8_t sha[6];
-                uint8_t spa[4];
-                uint8_t tha[6];
-                uint8_t tpa[4];
-            };
 
             if (header->len >= sizeof(ether_header) + sizeof(arp_header)) {
                 const arp_header* arp = reinterpret_cast<const arp_header*>(packet + sizeof(ether_header));
@@ -372,17 +680,17 @@ void PacketCapture::run()
                     case 2: op = "Reply"; break;
                     default: op = QString("Op%1").arg(ntohs(arp->oper));
                 }
-                QString info = QString("[%1] ARP %2 %3 (%4) → %5 (%6) Len=%7 Time=%8.%9")
-                    .arg(++m_packetCount)
-                    .arg(op)
-                    .arg(srcIp)
-                    .arg(srcMac)
-                    .arg(dstIp)
-                    .arg(dstMac)
-                    .arg(header->len)
-                    .arg(header->ts.tv_sec)
-                    .arg(header->ts.tv_usec);
-                emit packetCaptured(info);
+                QString info = QString("[%1] %2(%3) → %4(%5) ARP Len=%6 Time=%7.%8 %9")
+                                   .arg(++m_packetCount)
+                                   .arg(srcIp)
+                                   .arg(srcMac)
+                                   .arg(dstIp)
+                                   .arg(dstMac)
+                                   .arg(header->len)
+                                   .arg(header->ts.tv_sec)
+                                   .arg(header->ts.tv_usec)
+                                   .arg(op);
+                emit packetCaptured(info, httpBody, hexData);
             } else {
                 qWarning() << "Invalid ARP packet length";
             }
@@ -390,11 +698,13 @@ void PacketCapture::run()
 
         // 默认情况下仍输出基本信息
         if (protocol == "Unknown") {
-            QString info = QString("[%1] Unknown protocol (0x%2), Len=%3")
+            QString info = QString("[%1] Unknown → Unknown Unknown Len=%2 Time=%3.%4 ether_type=0x%5")
                 .arg(++m_packetCount)
-                .arg(eth_type, 0, 16)
-                .arg(header->len);
-            emit packetCaptured(info);
+                .arg(header->len)
+                .arg(header->ts.tv_sec)
+                .arg(header->ts.tv_usec)
+                .arg(eth_type, 0, 16);
+            emit packetCaptured(info, "Unknown", "Unknown");
         }
     }
 

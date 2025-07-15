@@ -2,11 +2,16 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>597</width>
+    <height>509</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>SmartSniffer</string>
-  </property>
-  <property name="windowState">
-    <enum>Qt::WindowFullScreen</enum>
   </property>
   <widget class="QWidget" name="centralwidget">
    <property name="styleSheet">
@@ -81,39 +86,71 @@
    <layout class="QHBoxLayout" name="mainLayout" stretch="3,7">
     <item>
      <widget class="QGroupBox" name="groupConfig">
-      <property name="title"><string>配置面板</string></property>
+      <property name="styleSheet">
+       <string notr="true">color: #eee; font-size:16px; width: 30%;</string>
+      </property>
+      <property name="title">
+       <string>配置面板</string>
+      </property>
       <layout class="QVBoxLayout" name="configLayout">
        <item>
         <widget class="QLabel" name="labelInterface">
-         <property name="text"><string>网络接口:</string></property>
-         <property name="styleSheet"><string>color: #eee; font-size:14px;</string></property>
+         <property name="styleSheet">
+          <string>color: #eee; font-size:14px;</string>
+         </property>
+         <property name="text">
+          <string>网络接口:</string>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QComboBox" name="comboInterface">
-         <property name="styleSheet"><string>padding:4px; color:#fff; background:#3b3f4a; border-radius:4px;</string></property>
+         <property name="styleSheet">
+          <string>padding:4px; color:#fff; background:#3b3f4a; border-radius:4px;</string>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QLabel" name="labelFilter">
-         <property name="text"><string>过滤规则:</string></property>
-         <property name="styleSheet"><string>color: #eee; font-size:14px;</string></property>
+         <property name="styleSheet">
+          <string>color: #eee; font-size:14px;</string>
+         </property>
+         <property name="text">
+          <string>过滤规则:</string>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QLineEdit" name="editFilter">
-         <property name="placeholderText"><string>例如: tcp port 80</string></property>
-         <property name="styleSheet"><string>padding:4px; color:#fff; background:#3b3f4a; border:none; border-radius:4px;</string></property>
+         <property name="styleSheet">
+          <string>padding:4px; color:#fff; background:#3b3f4a; border:none; border-radius:4px;</string>
+         </property>
+         <property name="placeholderText">
+          <string>例如: tcp</string>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QPushButton" name="btnApplyFilter">
-         <property name="text"><string>应用过滤</string></property>
+         <property name="styleSheet">
+          <string notr="true">width: fit-content; color: #eee; font-size:12px;</string>
+         </property>
+         <property name="text">
+          <string>应用过滤</string>
+         </property>
         </widget>
        </item>
        <item>
         <spacer name="verticalSpacer">
-         <property name="orientation"><enum>Qt::Vertical</enum></property>
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
         </spacer>
        </item>
       </layout>
@@ -121,32 +158,113 @@
     </item>
     <item>
      <widget class="QSplitter" name="splitterData">
-      <property name="orientation"><enum>Qt::Vertical</enum></property>
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
       <widget class="QTableWidget" name="tablePackets">
-       <property name="alternatingRowColors"><bool>true</bool></property>
-       <property name="rowCount"><number>0</number></property>
-       <property name="columnCount"><number>6</number></property>
+       <property name="alternatingRowColors">
+        <bool>true</bool>
+       </property>
+       <property name="rowCount">
+        <number>0</number>
+       </property>
+       <property name="columnCount">
+        <number>6</number>
+       </property>
+       <column/>
+       <column/>
+       <column/>
+       <column/>
+       <column/>
+       <column/>
       </widget>
-      <widget class="QTabWidget" name="tabDetails">
-       <widget class="QWidget" name="tabRaw">
-        <attribute name="title"><string>原始数据</string></attribute>
-        <layout class="QVBoxLayout" name="layoutRaw"><item><widget class="QTextEdit" name="textRaw"/></item></layout>
-       </widget>
-       <widget class="QWidget" name="tabHex">
-        <attribute name="title"><string>十六进制</string></attribute>
-        <layout class="QVBoxLayout" name="layoutHex"><item><widget class="QTextEdit" name="textHex"/></item></layout>
-       </widget>
-       <widget class="QWidget" name="tabParsed">
-        <attribute name="title"><string>协议解析</string></attribute>
-        <layout class="QVBoxLayout" name="layoutParsed"><item><widget class="QTextEdit" name="textParsed"/></item></layout>
-       </widget>
+      <widget class="QWidget" name="horizontalLayoutWidget">
+       <layout class="QHBoxLayout" name="detailedInfoArea">
+        <item>
+         <layout class="QVBoxLayout" name="hexVerticalLayout">
+          <item>
+           <widget class="QLabel" name="hexLabel">
+            <property name="styleSheet">
+             <string notr="true">color: #eee; font-size:16px;</string>
+            </property>
+            <property name="text">
+             <string>十六进制</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QTextEdit" name="hexContent">
+            <property name="autoFillBackground">
+             <bool>true</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">font-family: &quot;Courier New&quot;; font-size: 14px;</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="rawVerticalLayout">
+          <item>
+           <widget class="QLabel" name="rawLabel">
+            <property name="styleSheet">
+             <string notr="true">color: #eee; font-size:16px;</string>
+            </property>
+            <property name="text">
+             <string>原始数据</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QTextEdit" name="rawContent">
+            <property name="styleSheet">
+             <string notr="true"> font-size:14px;</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="parsedVerticalLayout">
+          <item>
+           <widget class="QLabel" name="parsedLabel">
+            <property name="styleSheet">
+             <string notr="true">color: #eee; font-size:16px;</string>
+            </property>
+            <property name="text">
+             <string>协议解析</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QTextEdit" name="parsedContent">
+            <property name="styleSheet">
+             <string notr="true">font-family: &quot;Consolas&quot;; font-size:14px;</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
       </widget>
      </widget>
     </item>
    </layout>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
-   <property name="iconSize"><size><width>24</width><height>24</height></size></property>
+   <property name="iconSize">
+    <size>
+     <width>24</width>
+     <height>24</height>
+    </size>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
    <addaction name="actionStartCapture"/>
    <addaction name="actionStopCapture"/>
    <addaction name="actionExport"/>
@@ -180,6 +298,8 @@
    </property>
   </action>
  </widget>
- <resources><include location="icons.qrc"/></resources>
+ <resources>
+  <include location="icons.qrc"/>
+ </resources>
  <connections/>
 </ui>

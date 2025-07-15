@@ -7,14 +7,20 @@
 #include "packetcapture.h"
 
 struct Packet {
+    // 表格信息
     QString id;
     QString timestamp;
     QString srcIP;
     QString dstIP;
     QString protocol;
     int length;
-    QString flags;
+    QString extraInfos;
     QString aiTag;
+
+    // 详细信息
+    QString httpBody;
+    QString hexData;
+    QString parsedData;
 };
 
 struct AlertInfo {
@@ -25,6 +31,8 @@ struct AlertInfo {
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
+const int TABLE_SIZE = 500;
 
 class MainWindow : public QMainWindow
 {
@@ -47,11 +55,13 @@ private slots:
     void onApplyFilter();     // 配置变更，发送configChanged
     void onExportData();
     void onPacketSelected();
-    void handlePacketCaptured(const QString &packetInfo);
+    void handlePacketCaptured(const QString &packetInfo, const QString &httpBody, const QString &hexData);
 
 private:
     Ui::MainWindow *ui;
     PacketCapture *m_capture;
+    Packet packetList[TABLE_SIZE];
+    int listHead, listTail, removedRowCount;
 
     void initializeUi();
     void connectSignals();

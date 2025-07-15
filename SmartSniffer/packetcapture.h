@@ -88,6 +88,26 @@ typedef struct ip6_hdr {
 #include <netinet/ip6.h>  // Linux/Mac 使用标准头文件
 #endif
 
+#ifdef _WIN32
+// Windows 下自定义 ARP 头结构体
+#pragma pack(push, 1)
+struct arp_header {
+    uint16_t htype;
+    uint16_t ptype;
+    uint8_t hlen;
+    uint8_t plen;
+    uint16_t oper;
+    uint8_t sha[6];
+    uint8_t spa[4];
+    uint8_t tha[6];
+    uint8_t tpa[4];
+};
+#pragma pack(pop)
+
+#else
+#include <netinet/arp.h>  // Linux/Mac 使用标准头文件
+#endif
+
 class PacketCapture : public QThread
 {
     Q_OBJECT
@@ -95,11 +115,12 @@ public:
     explicit PacketCapture(QObject *parent = nullptr);
     ~PacketCapture();
 
+    bool isCapturing();
     void setDeviceName(const QString &deviceName);
     void setFilterRule(const QString &filterRule);
 
 signals:
-    void packetCaptured(const QString &packetInfo);
+    void packetCaptured(const QString &packetInfo, const QString &httpBody, const QString &hexData);
 
 public slots:
     void onStartCapture();
@@ -115,6 +136,8 @@ private:
     QString m_filterRule;
     QAtomicInteger<quint32> m_stop;
     QAtomicInteger<unsigned long long> m_packetCount{0};
+
+    QString extractPayload(const u_char* packet, const struct pcap_pkthdr* header);
 
     bool isExtensionHeader(uint8_t header_type) {
         return (header_type == 0) ||    // Hop-by-Hop

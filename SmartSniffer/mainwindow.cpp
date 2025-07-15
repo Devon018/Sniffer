@@ -24,6 +24,11 @@ MainWindow::MainWindow(QWidget *parent)
     initializeUi();
     loadInterfaces();
     connectSignals();
+
+    memset(packetList, 0, sizeof(packetList));
+    listHead = listTail = removedRowCount = 0;
+
+
 }
 
 MainWindow::~MainWindow()
@@ -39,7 +44,7 @@ void MainWindow::initializeUi()
     statusBar()->showMessage(tr("就绪"));
     ui->tablePackets->setColumnCount(8);
     ui->tablePackets->setHorizontalHeaderLabels(
-        {tr("序号"), tr("时间戳"), tr("源IP"), tr("目的IP"), tr("协议"), tr("长度"), tr("FLAG"), tr("AI 标记")});
+        {tr("序号"), tr("时间戳"), tr("源IP"), tr("目的IP"), tr("协议"), tr("长度"), tr("其他信息"), tr("AI 标记")});
     ui->tablePackets->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     ui->tablePackets->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tablePackets->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -59,7 +64,7 @@ QString getFriendlyName(const char *adapterName) {
 
     QString guid = fullName.mid(startIdx, endIdx - startIdx + 1).toUpper();
 
-    qDebug() << guid << '\n';
+    qDebug() << guid;
 
     // 获取所有适配器信息
     ULONG bufferSize = 15000;
@@ -80,7 +85,7 @@ QString getFriendlyName(const char *adapterName) {
     if (dwRet == NO_ERROR) {
         for (IP_ADAPTER_ADDRESSES *pCurr = pAddresses; pCurr != nullptr; pCurr = pCurr->Next) {
             if (pCurr->AdapterName) {
-                qDebug() << pCurr->AdapterName << "\t" << QString::fromWCharArray(pCurr->FriendlyName) << "\n";
+                // qDebug() << pCurr->AdapterName << "\t" << QString::fromWCharArray(pCurr->FriendlyName) << "\n";
                 if (QString(pCurr->AdapterName).toUpper() == guid.toUpper()) {
                     result = QString::fromWCharArray(pCurr->FriendlyName);
                     break;
@@ -137,26 +142,26 @@ void MainWindow::connectSignals()
     connect(this, &MainWindow::configChanged, m_capture, &PacketCapture::onConfigChanged);
 
     connect(ui->tablePackets, &QTableWidget::itemSelectionChanged, this, &MainWindow::onPacketSelected);
-    connect(ui->tablePackets, &QTableWidget::cellEntered, this, [=](int row, int){
-        for(int col=0; col<ui->tablePackets->columnCount(); ++col){
-            QWidget *cellWidget = ui->tablePackets->cellWidget(row, col);
-            if(!cellWidget){
-                cellWidget = new QWidget;
-                cellWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
-                ui->tablePackets->setCellWidget(row, col, cellWidget);
-            }
-            auto *effect = new QGraphicsColorizeEffect(cellWidget);
-            effect->setColor(QColor(255, 255, 255));
-            effect->setStrength(1.0);
-            cellWidget->setGraphicsEffect(effect);
-            auto *anim = new QPropertyAnimation(effect, "strength", this);
-            anim->setDuration(300);
-            anim->setStartValue(1.0);
-            anim->setEndValue(0.0);
-            anim->setEasingCurve(QEasingCurve::OutQuad);
-            anim->start(QAbstractAnimation::DeleteWhenStopped);
-        }
-    });
+    // connect(ui->tablePackets, &QTableWidget::cellEntered, this, [=](int row, int){
+    //     for(int col=0; col<ui->tablePackets->columnCount(); ++col){
+    //         QWidget *cellWidget = ui->tablePackets->cellWidget(row, col);
+    //         if(!cellWidget){
+    //             cellWidget = new QWidget;
+    //             cellWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
+    //             ui->tablePackets->setCellWidget(row, col, cellWidget);
+    //         }
+    //         auto *effect = new QGraphicsColorizeEffect(cellWidget);
+    //         effect->setColor(QColor(255, 255, 255));
+    //         effect->setStrength(1.0);
+    //         cellWidget->setGraphicsEffect(effect);
+    //         auto *anim = new QPropertyAnimation(effect, "strength", this);
+    //         anim->setDuration(300);
+    //         anim->setStartValue(1.0);
+    //         anim->setEndValue(0.0);
+    //         anim->setEasingCurve(QEasingCurve::OutQuad);
+    //         anim->start(QAbstractAnimation::DeleteWhenStopped);
+    //     }
+    // });
 
     connect(m_capture, &PacketCapture::packetCaptured, this, &MainWindow::handlePacketCaptured);
 }
@@ -199,10 +204,13 @@ void MainWindow::onStopCapture()
 void MainWindow::onApplyFilter()
 {
     ConfigData cfg{getCurrInterfaceName(), ui->editFilter->text()};
-    emit stopCapture();
+    bool toRestart = this->m_capture->isCapturing();
+    if (toRestart)
+        emit stopCapture();
     emit configChanged(cfg);
-    emit startCapture();
     statusBar()->showMessage(tr("过滤规则已应用"));
+    if (toRestart)
+        emit startCapture();
 }
 
 void MainWindow::onExportData()
@@ -228,7 +236,7 @@ void MainWindow::onPacketSelected()
     if (row >= 0) showDetails(row);
 }
 
-void MainWindow::handlePacketCaptured(const QString &packetInfo)
+void MainWindow::handlePacketCaptured(const QString &packetInfo, const QString &httpBody, const QString &hexData)
 {
     qDebug() << packetInfo << "\n";
     Packet pkt;
@@ -242,13 +250,27 @@ void MainWindow::handlePacketCaptured(const QString &packetInfo)
     pkt.dstIP = parts.value(3);
     pkt.protocol = parts.value(4);
     pkt.length = parts.value(5).remove("Len=").toInt();
-    pkt.flags = parts.value(7).remove("Flags=");
-    // emit receivePacket(pkt);
+    pkt.extraInfos = "";
+    for (int i = 7; i < parts.length(); i ++)
+        pkt.extraInfos += parts.value(i) + ' ';
+    pkt.extraInfos.removeLast();
+
+    pkt.httpBody = httpBody;
+    pkt.hexData = hexData;
+    pkt.parsedData = packetInfo;
+
+    packetList[listTail] = pkt;
+    listTail = (listTail + 1) % TABLE_SIZE;
     appendPacketRow(pkt);
 }
 
 void MainWindow::appendPacketRow(const Packet &pkt)
 {
+    if (ui->tablePackets->rowCount() >= TABLE_SIZE) {
+        ui->tablePackets->removeRow(0);
+        removedRowCount ++;
+    }
+
     int row = ui->tablePackets->rowCount();
     ui->tablePackets->insertRow(row);
     ui->tablePackets->setItem(row, 0, new QTableWidgetItem(pkt.id));
@@ -257,13 +279,15 @@ void MainWindow::appendPacketRow(const Packet &pkt)
     ui->tablePackets->setItem(row, 3, new QTableWidgetItem(pkt.dstIP));
     ui->tablePackets->setItem(row, 4, new QTableWidgetItem(pkt.protocol));
     ui->tablePackets->setItem(row, 5, new QTableWidgetItem(QString::number(pkt.length)));
-    // ui->tablePackets->setItem(row, 6, new QTableWidgetItem(pkt.aiTag));
+    ui->tablePackets->setItem(row, 6, new QTableWidgetItem(pkt.extraInfos));
+    ui->tablePackets->scrollToBottom();
 }
 
 void MainWindow::showDetails(int row)
 {
-    ui->textRaw->setPlainText(tr("Raw data for row %1").arg(row));
-    ui->textHex->setPlainText(tr("Hex data for row %1").arg(row));
-    ui->textParsed->setPlainText(tr("Parsed data for row %1").arg(row));
+    int idx = (row + removedRowCount) % TABLE_SIZE;
+    ui->hexContent->setPlainText(packetList[idx].hexData);
+    ui->rawContent->setPlainText(packetList[idx].httpBody);
+    ui->parsedContent->setPlainText(packetList[idx].parsedData);
 }
 
