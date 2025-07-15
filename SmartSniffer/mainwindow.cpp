@@ -5,6 +5,8 @@
 #include <QHeaderView>
 #include <QDateTime>
 #include <QMessageBox>
+#include <QPropertyAnimation>
+#include <QGraphicsColorizeEffect>
 #include <winsock2.h>
 #include <iphlpapi.h>
 #include <stdio.h>
@@ -22,9 +24,6 @@ MainWindow::MainWindow(QWidget *parent)
     initializeUi();
     loadInterfaces();
     connectSignals();
-
-    connect(m_capture, &PacketCapture::packetCaptured,
-            this, &MainWindow::handlePacketCaptured);
 }
 
 MainWindow::~MainWindow()
@@ -36,7 +35,6 @@ MainWindow::~MainWindow()
 
 void MainWindow::initializeUi()
 {
-    setMenuBar(ui->menubar);
     addToolBar(ui->mainToolBar);
     statusBar()->showMessage(tr("就绪"));
     ui->tablePackets->setColumnCount(8);
@@ -136,12 +134,31 @@ void MainWindow::connectSignals()
     connect(ui->actionExport, &QAction::triggered, this, &MainWindow::onExportData);
 
     connect(ui->btnApplyFilter, &QPushButton::clicked, this, &MainWindow::onApplyFilter);
+    connect(this, &MainWindow::configChanged, m_capture, &PacketCapture::onConfigChanged);
 
-    connect(ui->tablePackets, &QTableWidget::itemSelectionChanged,
-            this, &MainWindow::onPacketSelected);
+    connect(ui->tablePackets, &QTableWidget::itemSelectionChanged, this, &MainWindow::onPacketSelected);
+    connect(ui->tablePackets, &QTableWidget::cellEntered, this, [=](int row, int){
+        for(int col=0; col<ui->tablePackets->columnCount(); ++col){
+            QWidget *cellWidget = ui->tablePackets->cellWidget(row, col);
+            if(!cellWidget){
+                cellWidget = new QWidget;
+                cellWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
+                ui->tablePackets->setCellWidget(row, col, cellWidget);
+            }
+            auto *effect = new QGraphicsColorizeEffect(cellWidget);
+            effect->setColor(QColor(255, 255, 255));
+            effect->setStrength(1.0);
+            cellWidget->setGraphicsEffect(effect);
+            auto *anim = new QPropertyAnimation(effect, "strength", this);
+            anim->setDuration(300);
+            anim->setStartValue(1.0);
+            anim->setEndValue(0.0);
+            anim->setEasingCurve(QEasingCurve::OutQuad);
+            anim->start(QAbstractAnimation::DeleteWhenStopped);
+        }
+    });
 
-    connect(m_capture, &PacketCapture::packetCaptured,
-            this, &MainWindow::handlePacketCaptured);
+    connect(m_capture, &PacketCapture::packetCaptured, this, &MainWindow::handlePacketCaptured);
 }
 
 QString MainWindow::getCurrInterfaceName()
@@ -157,12 +174,14 @@ void MainWindow::onStartCapture()
     QString filter = ui->editFilter->text();
 
     emit configChanged({iface, filter});
-    emit startCapture(iface, filter);
+    qDebug() << "configChanged emitted.";
+
+    emit startCapture();
 
     ui->actionStartCapture->setEnabled(false);
     ui->actionStopCapture->setEnabled(true);
 
-    qDebug() << "startCapture emitted.\n";
+    qDebug() << "startCapture emitted.";
     statusBar()->showMessage(tr("抓包已启动"));
 }
 
@@ -180,7 +199,9 @@ void MainWindow::onStopCapture()
 void MainWindow::onApplyFilter()
 {
     ConfigData cfg{getCurrInterfaceName(), ui->editFilter->text()};
+    emit stopCapture();
     emit configChanged(cfg);
+    emit startCapture();
     statusBar()->showMessage(tr("过滤规则已应用"));
 }
 
@@ -209,21 +230,19 @@ void MainWindow::onPacketSelected()
 
 void MainWindow::handlePacketCaptured(const QString &packetInfo)
 {
-    // 解析 packetInfo 并封装为 Packet 类型
-    // TODO: 实现解析逻辑
     qDebug() << packetInfo << "\n";
     Packet pkt;
 
     // QString("[%1] %2 → %3 %4 Len=%5 Time=%6 Flags=%7")
     QStringList parts = packetInfo.split(' ');
-    qDebug() << parts.value(0) << " " << parts.value(1) << " " << parts.value(2) << " " << parts.value(3) << " " << parts.value(4) << " " << parts.value(5) << " " << parts.value(6) << "\n";
-    pkt.id = parts.value(0).split('[')[0].split(']')[0];
-    pkt.timestamp = parts.value(5).remove("Time=");
+    qDebug() << parts.value(0) << " " << parts.value(1) << " " << parts.value(2) << " " << parts.value(3) << " " << parts.value(4) << " " << parts.value(5) << " " << parts.value(6);
+    pkt.id = parts.value(0).remove("[").remove("]");
+    pkt.timestamp = parts.value(6).remove("Time=");
     pkt.srcIP = parts.value(1);
     pkt.dstIP = parts.value(3);
     pkt.protocol = parts.value(4);
-    pkt.length = parts.value(6).remove("Len=").toInt();
-    pkt.flags = parts.last().remove("Flags=");
+    pkt.length = parts.value(5).remove("Len=").toInt();
+    pkt.flags = parts.value(7).remove("Flags=");
     // emit receivePacket(pkt);
     appendPacketRow(pkt);
 }

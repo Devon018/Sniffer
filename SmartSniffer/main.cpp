@@ -3,7 +3,7 @@
 #include <QApplication>
 #include <QLocale>
 #include <QTranslator>
-#include "configdata.h""
+#include "configdata.h"
 
 int main(int argc, char *argv[])
 {

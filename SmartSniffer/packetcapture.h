@@ -102,7 +102,7 @@ signals:
     void packetCaptured(const QString &packetInfo);
 
 public slots:
-    void onStartCapture(const QString &device, const QString &filter);
+    void onStartCapture();
     void onStopCapture();
     void onConfigChanged(const ConfigData &config);
 

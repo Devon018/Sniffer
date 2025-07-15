@@ -55,12 +55,9 @@ void PacketCapture::setFilterRule(const QString &filterRule)
     m_filterRule = filterRule;
 }
 
-void PacketCapture::onStartCapture(const QString &device, const QString &filter)
+void PacketCapture::onStartCapture()
 {
-    qDebug() << "开始抓包，接口:" << device << ", 过滤规则:" << filter;
-
-    this->setDeviceName(device);
-    this->setFilterRule(filter);
+    qDebug() << "开始抓包，接口:" << this->m_deviceName << ", 过滤规则:" << this->m_filterRule;
 
     m_stop.storeRelaxed(0);
 
@@ -76,6 +73,7 @@ void PacketCapture::onConfigChanged(const ConfigData &config)
 {
     this->setDeviceName(config.device);
     this->setFilterRule(config.filter);
+    qDebug() << "Device set: " << this->m_deviceName << "; Filter set: " << this->m_filterRule;
 }
 
 void PacketCapture::run()
@@ -141,6 +139,18 @@ void PacketCapture::run()
             inet_ntop(AF_INET, &(ipHdr->ip_src), srcIP, INET_ADDRSTRLEN);
             inet_ntop(AF_INET, &(ipHdr->ip_dst), dstIP, INET_ADDRSTRLEN);
 
+            srcAddr = QString("%1.%2.%3.%4")
+                          .arg((ntohl(ipHdr->ip_src.s_addr) >> 24) & 0xFF)
+                          .arg((ntohl(ipHdr->ip_src.s_addr) >> 16) & 0xFF)
+                          .arg((ntohl(ipHdr->ip_src.s_addr) >> 8) & 0xFF)
+                          .arg(ntohl(ipHdr->ip_src.s_addr) & 0xFF);
+
+            dstAddr = QString("%1.%2.%3.%4")
+                          .arg((ntohl(ipHdr->ip_dst.s_addr) >> 24) & 0xFF)
+                          .arg((ntohl(ipHdr->ip_dst.s_addr) >> 16) & 0xFF)
+                          .arg((ntohl(ipHdr->ip_dst.s_addr) >> 8) & 0xFF)
+                          .arg(ntohl(ipHdr->ip_dst.s_addr) & 0xFF);
+
             QString info = QString("%1 > %2").arg(srcIP).arg(dstIP);
 
             // 解析传输层协议
@@ -173,13 +183,16 @@ void PacketCapture::run()
 
                 // 构造显示信息
                 QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6 Flags=%7")
-                                   .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 6位宽序号
+                                   // .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 6位宽序号
+                                   .arg(++m_packetCount)
                                    .arg(srcAddr)
                                    .arg(dstAddr)
                                    .arg(protocol)
                                    .arg(header->len)
                                    .arg(timestamp)
                                    .arg(tcpFlags.trimmed());
+
+                qDebug() << m_packetCount << " TCP packet info formatted.";
 
                 emit packetCaptured(info);
             }
@@ -200,17 +213,29 @@ void PacketCapture::run()
                 uint16_t payloadLen = udpLen - sizeof(udp_header);
 
                 // 构造显示信息
-                QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 (Payload=%8) Time=%9.%10")
-                                   .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 包序号
+                QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 Time=%8.%9 (Payload=%10)")
+                                   .arg(++m_packetCount)//, 6, 10, QLatin1Char(' '))  // 包序号
                                    .arg(srcAddr)                                  // 源IP
                                    .arg(srcPort)                                  // 源端口
                                    .arg(dstAddr)                                  // 目标IP
                                    .arg(dstPort)                                  // 目标端口
                                    .arg(protocol)                                 // 协议
                                    .arg(header->len)                              // 总长度
-                                   .arg(payloadLen)                               // 载荷长度
                                    .arg(header->ts.tv_sec)                        // 秒
-                                   .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')); // 微秒
+                                   .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')) // 微秒
+                                   .arg(payloadLen);                               // 载荷长度
+                // QString info = QString("[%1] %2:%3 → %4:%5 %6 Len=%7 (Payload=%8) Time=%9.%10")
+                //                    // .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 包序号
+                //                    .arg(++m_packetCount)
+                //                    .arg(srcAddr)                                  // 源IP
+                //                    .arg(srcPort)                                  // 源端口
+                //                    .arg(dstAddr)                                  // 目标IP
+                //                    .arg(dstPort)                                  // 目标端口
+                //                    .arg(protocol)                                 // 协议
+                //                    .arg(header->len)                              // 总长度
+                //                    .arg(payloadLen)                               // 载荷长度
+                //                    .arg(header->ts.tv_sec)                        // 秒
+                //                    .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')); // 微秒
 
                 // 特殊协议识别
                 if (dstPort == 53 || srcPort == 53) {
@@ -218,6 +243,8 @@ void PacketCapture::run()
                 } else if (dstPort == 67 || dstPort == 68 || srcPort == 67 || srcPort == 68) {
                     info += " [DHCP]";
                 }
+
+                qDebug() << m_packetCount << " UDP packet info formatted.";
 
                 emit packetCaptured(info);
             }
@@ -277,16 +304,29 @@ void PacketCapture::run()
             }
 
             // 构造显示信息
-            QString info = QString("[%1] %2 → %3 %4 Len=%5 Payload=%6 Next=%7 Time=%8.%9")
-                               .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 包序号
+            QString info = QString("[%1] %2 → %3 %4 Len=%5 Time=%6.%7 Payload=%8 Next=%9")
+                               .arg(++m_packetCount)//, 6, 10, QLatin1Char(' '))  // 包序号
                                .arg(srcAddr)                                  // 源IPv6
                                .arg(dstAddr)                                  // 目标IPv6
                                .arg(protocol)                                 // IPv6
                                .arg(header->len)                              // 总长度
-                               .arg(payload_len)                              // 载荷长度
-                               .arg(upperProtocol)                            // 上层协议
                                .arg(header->ts.tv_sec)                        // 秒
-                               .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')); // 微秒
+                               .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')) // 微秒
+                               .arg(payload_len)                              // 载荷长度
+                               .arg(upperProtocol);                            // 上层协议
+            // QString info = QString("[%1] %2 → %3 %4 Len=%5 Payload=%6 Next=%7 Time=%8.%9")
+            //                    // .arg(++m_packetCount, 6, 10, QLatin1Char(' '))  // 包序号
+            //                    .arg(++m_packetCount)
+            //                    .arg(srcAddr)                                  // 源IPv6
+            //                    .arg(dstAddr)                                  // 目标IPv6
+            //                    .arg(protocol)                                 // IPv6
+            //                    .arg(header->len)                              // 总长度
+            //                    .arg(payload_len)                              // 载荷长度
+            //                    .arg(upperProtocol)                            // 上层协议
+            //                    .arg(header->ts.tv_sec)                        // 秒
+            //                    .arg(header->ts.tv_usec, 6, 10, QLatin1Char('0')); // 微秒
+
+            qDebug() << m_packetCount << " IPv6 packet info formatted.";
 
             emit packetCaptured(info);
         }

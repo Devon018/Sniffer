@@ -2,63 +2,118 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>1000</width>
-    <height>700</height>
-   </rect>
-  </property>
   <property name="windowTitle">
    <string>SmartSniffer</string>
   </property>
+  <property name="windowState">
+    <enum>Qt::WindowFullScreen</enum>
+  </property>
   <widget class="QWidget" name="centralwidget">
+   <property name="styleSheet">
+    <string>
+      /* 全局背景渐变 */
+      QWidget#centralwidget {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #2a2d37, stop:1 #1c1f26);
+      }
+      /* GroupBox 样式 */
+      QGroupBox#groupConfig {
+        background: rgba(255,255,255,0.05);
+        border: none;
+        border-radius: 8px;
+        margin-top: 10px;
+      }
+      QGroupBox#groupConfig::title {
+        subcontrol-origin: margin;
+        subcontrol-position: top center;
+        padding: 4px;
+        color: #ffffff;
+        font-weight: bold;
+      }
+      /* 按钮悬停及按下动画效果 */
+      QPushButton {
+        background: #4a90e2;
+        border-radius: 6px;
+        padding: 6px 12px;
+        color: #fff;
+        font-size: 14px;
+      }
+      QPushButton:hover {
+        background: #6fb4f9;
+      }
+      QPushButton:pressed {
+        background: #367dc1;
+      }
+      /* 表格样式 */
+      QTableWidget {
+        background: rgba(255,255,255,0.03);
+        alternate-background-color: rgba(255,255,255,0.05);
+        gridline-color: #444;
+        color: #fff;
+        font-size: 12px;
+      }
+      QHeaderView::section {
+        background: #3b3f4a;
+        padding: 4px;
+        border: none;
+        color: #ddd;
+        font-weight: bold;
+      }
+      /* TabWidget 样式 */
+      QTabWidget::pane {
+        background: rgba(255,255,255,0.02);
+        border: none;
+        border-radius: 6px;
+      }
+      QTabBar::tab {
+        background: #3b3f4a;
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
+        padding: 8px;
+        color: #ccc;
+      }
+      QTabBar::tab:selected {
+        background: #4f5370;
+        color: #fff;
+      }
+   </string>
+   </property>
    <layout class="QHBoxLayout" name="mainLayout" stretch="3,7">
     <item>
      <widget class="QGroupBox" name="groupConfig">
-      <property name="title">
-       <string>配置面板</string>
-      </property>
+      <property name="title"><string>配置面板</string></property>
       <layout class="QVBoxLayout" name="configLayout">
        <item>
         <widget class="QLabel" name="labelInterface">
-         <property name="text">
-          <string>网络接口:</string>
-         </property>
+         <property name="text"><string>网络接口:</string></property>
+         <property name="styleSheet"><string>color: #eee; font-size:14px;</string></property>
         </widget>
        </item>
        <item>
-        <widget class="QComboBox" name="comboInterface"/>
+        <widget class="QComboBox" name="comboInterface">
+         <property name="styleSheet"><string>padding:4px; color:#fff; background:#3b3f4a; border-radius:4px;</string></property>
+        </widget>
        </item>
        <item>
         <widget class="QLabel" name="labelFilter">
-         <property name="text">
-          <string>过滤规则:</string>
-         </property>
+         <property name="text"><string>过滤规则:</string></property>
+         <property name="styleSheet"><string>color: #eee; font-size:14px;</string></property>
         </widget>
        </item>
        <item>
-        <widget class="QLineEdit" name="editFilter"/>
+        <widget class="QLineEdit" name="editFilter">
+         <property name="placeholderText"><string>例如: tcp port 80</string></property>
+         <property name="styleSheet"><string>padding:4px; color:#fff; background:#3b3f4a; border:none; border-radius:4px;</string></property>
+        </widget>
        </item>
        <item>
         <widget class="QPushButton" name="btnApplyFilter">
-         <property name="text">
-          <string>应用过滤</string>
-         </property>
+         <property name="text"><string>应用过滤</string></property>
         </widget>
        </item>
        <item>
         <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
+         <property name="orientation"><enum>Qt::Vertical</enum></property>
         </spacer>
        </item>
       </layout>
@@ -66,94 +121,37 @@
     </item>
     <item>
      <widget class="QSplitter" name="splitterData">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
+      <property name="orientation"><enum>Qt::Vertical</enum></property>
       <widget class="QTableWidget" name="tablePackets">
-       <property name="rowCount">
-        <number>0</number>
-       </property>
-       <property name="columnCount">
-        <number>6</number>
-       </property>
-       <column/>
-       <column/>
-       <column/>
-       <column/>
-       <column/>
-       <column/>
+       <property name="alternatingRowColors"><bool>true</bool></property>
+       <property name="rowCount"><number>0</number></property>
+       <property name="columnCount"><number>6</number></property>
       </widget>
       <widget class="QTabWidget" name="tabDetails">
-       <property name="currentIndex">
-        <number>0</number>
-       </property>
        <widget class="QWidget" name="tabRaw">
-        <attribute name="title">
-         <string>原始数据</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="layoutRaw">
-         <item>
-          <widget class="QTextEdit" name="textRaw"/>
-         </item>
-        </layout>
+        <attribute name="title"><string>原始数据</string></attribute>
+        <layout class="QVBoxLayout" name="layoutRaw"><item><widget class="QTextEdit" name="textRaw"/></item></layout>
        </widget>
        <widget class="QWidget" name="tabHex">
-        <attribute name="title">
-         <string>十六进制</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="layoutHex">
-         <item>
-          <widget class="QTextEdit" name="textHex"/>
-         </item>
-        </layout>
+        <attribute name="title"><string>十六进制</string></attribute>
+        <layout class="QVBoxLayout" name="layoutHex"><item><widget class="QTextEdit" name="textHex"/></item></layout>
        </widget>
        <widget class="QWidget" name="tabParsed">
-        <attribute name="title">
-         <string>协议解析</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="layoutParsed">
-         <item>
-          <widget class="QTextEdit" name="textParsed"/>
-         </item>
-        </layout>
+        <attribute name="title"><string>协议解析</string></attribute>
+        <layout class="QVBoxLayout" name="layoutParsed"><item><widget class="QTextEdit" name="textParsed"/></item></layout>
        </widget>
       </widget>
      </widget>
     </item>
    </layout>
   </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>1000</width>
-     <height>17</height>
-    </rect>
-   </property>
-  </widget>
   <widget class="QToolBar" name="mainToolBar">
-   <property name="windowTitle">
-    <string>工具栏</string>
-   </property>
-   <property name="toolButtonStyle">
-    <enum>Qt::ToolButtonIconOnly</enum>
-   </property>
-   <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
-   </attribute>
-   <attribute name="toolBarBreak">
-    <bool>false</bool>
-   </attribute>
+   <property name="iconSize"><size><width>24</width><height>24</height></size></property>
    <addaction name="actionStartCapture"/>
    <addaction name="actionStopCapture"/>
    <addaction name="actionExport"/>
   </widget>
-  <widget class="QStatusBar" name="statusbar">
-   <property name="sizeGripEnabled">
-    <bool>true</bool>
-   </property>
-  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
   <action name="actionStartCapture">
    <property name="icon">
     <iconset resource="icons.qrc">
@@ -182,8 +180,6 @@
    </property>
   </action>
  </widget>
- <resources>
-  <include location="icons.qrc"/>
- </resources>
+ <resources><include location="icons.qrc"/></resources>
  <connections/>
 </ui>
