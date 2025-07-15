@@ -761,6 +761,10 @@ void PacketCapture::run()
                     info += " [DHCP]";
                 }
 
+                QByteArray data = AIModelInputFormatter(srcPort, dstPort, protocol,
+                                                        getFlowStats(srcAddr, dstAddr), header->ts.tv_sec, srcAddr, dstAddr);
+                emit applyAIModel(data, m_packetCount);
+
                 qDebug() << m_packetCount << " UDP packet info formatted.";
 
                 int tmpCount = this->m_packetCount;

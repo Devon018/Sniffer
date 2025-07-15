@@ -216,13 +216,18 @@ void MainWindow::onExportData()
 {
     QString fileName = QFileDialog::getSaveFileName(this, tr("导出为 CSV"), {}, tr("CSV 文件 (*.csv)"));
     if (fileName.isEmpty()) return;
+
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return;
+
     QTextStream out(&file);
     for (int r = 0; r < ui->tablePackets->rowCount(); ++r) {
         for (int c = 0; c < ui->tablePackets->columnCount(); ++c) {
-            out << ui->tablePackets->item(r, c)->text();
-            if (c < ui->tablePackets->columnCount()-1) out << ',';
+            QTableWidgetItem *item = ui->tablePackets->item(r, c);
+            if (item) // 只有非空才取值
+                out << item->text();
+            if (c < ui->tablePackets->columnCount() - 1)
+                out << ',';
         }
         out << '\n';
     }
@@ -303,11 +308,13 @@ void MainWindow::setAILabel(const int packetId, const QString category)
 {
     if (packetId <= removedRowCount) return;
     int idx = (packetId + removedRowCount) % TABLE_SIZE;
+    qDebug() << "Setting AI Label for packet " << packetId;
     ui->tablePackets->setItem(idx, 7, new QTableWidgetItem(category));
 }
 
 void MainWindow::appendPacketRow(const Packet &pkt)
 {
+    qDebug() << "Appending row for packet " << pkt.id;
     if (ui->tablePackets->rowCount() >= TABLE_SIZE) {
         ui->tablePackets->removeRow(0);
         removedRowCount ++;
@@ -322,8 +329,8 @@ void MainWindow::appendPacketRow(const Packet &pkt)
     ui->tablePackets->setItem(row, 4, new QTableWidgetItem(pkt.protocol));
     ui->tablePackets->setItem(row, 5, new QTableWidgetItem(QString::number(pkt.length)));
     ui->tablePackets->setItem(row, 6, new QTableWidgetItem(pkt.extraInfos));
-    if (pkt.protocol == "IPv6" || pkt.protocol == "ARP")
-        ui->tablePackets->setItem(row, 7, new QTableWidgetItem("N/A"));
+    // if (pkt.protocol == "IPv6" || pkt.protocol == "ARP")
+    ui->tablePackets->setItem(row, 7, new QTableWidgetItem("N/A"));
     ui->tablePackets->scrollToBottom();
 }
 
