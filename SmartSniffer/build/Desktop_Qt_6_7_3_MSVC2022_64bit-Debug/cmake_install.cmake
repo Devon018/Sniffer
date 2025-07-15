@@ -1,4 +1,4 @@
-# Install script for directory: D:/Kobe/Projects/Qt Projects/Sniffer/SmartSniffer
+# Install script for directory: C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -33,7 +33,7 @@ if(NOT DEFINED CMAKE_CROSSCOMPILING)
 endif()
 
 if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "D:/Kobe/Projects/Qt Projects/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_3_MSVC2022_64bit-Debug/SmartSniffer.exe")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_3_MSVC2022_64bit-Debug/SmartSniffer.exe")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT)
@@ -44,5 +44,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "D:/Kobe/Projects/Qt Projects/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_3_MSVC2022_64bit-Debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "C:/Users/93530/Desktop/smartsniffer/Sniffer/SmartSniffer/build/Desktop_Qt_6_7_3_MSVC2022_64bit-Debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
