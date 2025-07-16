@@ -307,7 +307,7 @@ void MainWindow::handleApplyAIModel(QByteArray data, int packetId)
 void MainWindow::setAILabel(const int packetId, const QString category)
 {
     if (packetId <= removedRowCount) return;
-    int idx = (packetId + removedRowCount) % TABLE_SIZE;
+    int idx = (packetId - removedRowCount - 1) % TABLE_SIZE;
     qDebug() << "Setting AI Label for packet " << packetId;
     ui->tablePackets->setItem(idx, 7, new QTableWidgetItem(category));
 }
